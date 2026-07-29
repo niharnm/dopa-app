@@ -1,4 +1,4 @@
-import { type NextRequest } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
 import { resolveDopaApiBaseUrl } from "@/lib/dopa-api-config";
 import { updateSession } from "@/utils/supabase/middleware";
 
@@ -50,6 +50,15 @@ export function contentSecurityPolicy(nonce: string) {
     .trim();
 }
 
+export function requiresSessionRefresh(pathname: string) {
+  return !(
+    pathname === "/demo" ||
+    pathname.startsWith("/demo/") ||
+    pathname === "/fc-proof" ||
+    pathname.startsWith("/api/fc-demo/")
+  );
+}
+
 export async function proxy(request: NextRequest) {
   const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
   const policy = contentSecurityPolicy(nonce);
@@ -57,13 +66,15 @@ export async function proxy(request: NextRequest) {
   requestHeaders.set("x-nonce", nonce);
   requestHeaders.set("Content-Security-Policy", policy);
 
-  const response = await updateSession(request, requestHeaders);
+  const response = requiresSessionRefresh(request.nextUrl.pathname)
+    ? await updateSession(request, requestHeaders)
+    : NextResponse.next({ request: { headers: requestHeaders } });
   response.headers.set("Content-Security-Policy", policy);
   return response;
 }
 
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|mp4|webm)$).*)",
   ],
 };

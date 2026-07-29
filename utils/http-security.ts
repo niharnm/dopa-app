@@ -148,3 +148,56 @@ export async function readBoundedRequestText(
 
   return { success: true, data: rawBody };
 }
+
+export async function readBoundedResponseBytes(
+  response: Response,
+  maximumBytes: number,
+  errorMessage: string,
+): Promise<Uint8Array> {
+  const declaredLength = response.headers.get("content-length");
+  if (declaredLength !== null) {
+    const parsedLength = Number(declaredLength);
+    if (
+      !Number.isSafeInteger(parsedLength) ||
+      parsedLength < 0 ||
+      parsedLength > maximumBytes
+    ) {
+      await response.body?.cancel();
+      throw new Error(errorMessage);
+    }
+  }
+
+  if (!response.body) return new Uint8Array();
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let totalBytes = 0;
+
+  while (true) {
+    const chunk = await reader.read();
+    if (chunk.done) break;
+    totalBytes += chunk.value.byteLength;
+    if (totalBytes > maximumBytes) {
+      await reader.cancel();
+      throw new Error(errorMessage);
+    }
+    chunks.push(chunk.value);
+  }
+
+  const result = new Uint8Array(totalBytes);
+  let offset = 0;
+  for (const chunk of chunks) {
+    result.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return result;
+}
+
+export async function readBoundedResponseText(
+  response: Response,
+  maximumBytes: number,
+  errorMessage: string,
+): Promise<string> {
+  return new TextDecoder().decode(
+    await readBoundedResponseBytes(response, maximumBytes, errorMessage),
+  );
+}

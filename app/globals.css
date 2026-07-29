@@ -35,6 +35,10 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+body:has(#fc-sandbox-surface) [data-denver-root] {
+  display: none;
+}
+
 .font-\[510\] {
   font-variation-settings: "wght" 510;
 }

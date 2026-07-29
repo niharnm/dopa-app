@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="360" viewBox="0 0 640 360">
+  <defs>
+    <radialGradient id="glow" cx="78%" cy="30%" r="52%">
+      <stop offset="0" stop-color="#55e6d9" stop-opacity=".34"/>
+      <stop offset="1" stop-color="#080b12" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="line" x1="0" y1="0" x2="1" y2="0">
+      <stop stop-color="#55e6d9"/>
+      <stop offset="1" stop-color="#55e6d9" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <rect width="640" height="360" fill="#080b12"/>
+  <rect width="640" height="360" fill="url(#glow)"/>
+  <circle cx="515" cy="103" r="68" fill="none" stroke="#55e6d9" stroke-opacity=".32" stroke-width="2"/>
+  <circle cx="515" cy="103" r="46" fill="#55e6d9" fill-opacity=".08"/>
+  <text x="54" y="62" fill="#55e6d9" font-family="Arial, sans-serif" font-size="24" font-weight="700" letter-spacing="3">DOPA</text>
+  <text x="54" y="145" fill="#f8fafc" font-family="Arial, sans-serif" font-size="42" font-weight="700">Know before</text>
+  <text x="54" y="194" fill="#f8fafc" font-family="Arial, sans-serif" font-size="42" font-weight="700">you spend.</text>
+  <text x="56" y="241" fill="#aeb7c5" font-family="Arial, sans-serif" font-size="20">Pre-spend creative intelligence.</text>
+  <rect x="54" y="288" width="266" height="4" rx="2" fill="url(#line)"/>
+</svg>

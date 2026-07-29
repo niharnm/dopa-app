@@ -10,7 +10,9 @@
     "lint": "eslint",
     "test:denver": "bun tests/denver.test.ts",
     "test:google-ads": "bun tests/google-ads.test.ts",
-    "test:security": "bun tests/security.test.ts"
+    "test:security": "bun tests/security.test.ts",
+    "test:fc-sandbox": "bun tests/fc-sandbox.test.ts",
+    "verify:fc-sandbox": "bun scripts/verify-fc-sandbox.ts"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.7",
@@ -18,6 +20,7 @@
     "@supabase/ssr": "^0.12.4",
     "@supabase/supabase-js": "^2.111.0",
     "cmdk": "^1.1.1",
+    "e2b": "2.31.0",
     "motion": "^12.43.0",
     "next": "16.2.12",
     "react": "19.2.4",

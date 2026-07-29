@@ -6,12 +6,13 @@ import { DopaMark } from "@/components/landing/icons";
 const nav = [
   { label: "Features", href: "/#pipeline" },
   { label: "Demo", href: "/demo" },
+  { label: "FC proof", href: "/fc-proof" },
   { label: "Privacy", href: "/privacy" },
 ];
 
 export function DemoHeader() {
   return (
-    <header className="absolute inset-x-0 top-0 z-50">
+    <header className="absolute inset-x-0 top-0 z-50 border-b border-white/6 bg-[#070809]/70 backdrop-blur-xl">
       <div className="mx-auto flex h-16 max-w-300 items-center justify-between px-5 md:px-8">
         <Link
           href="/"

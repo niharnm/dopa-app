@@ -6,6 +6,7 @@ import {
 import {
   isSameOriginRequest,
   readJsonObjectRequest,
+  readBoundedResponseText,
 } from "../utils/http-security";
 import {
   isUuid,
@@ -13,7 +14,7 @@ import {
 } from "../lib/validation";
 import { enforceApiQuota } from "../utils/api-quota";
 import { normalizeDopaApiBaseUrl } from "../lib/dopa-api";
-import { contentSecurityPolicy } from "../proxy";
+import { contentSecurityPolicy, requiresSessionRefresh } from "../proxy";
 
 function test(name: string, run: () => void) {
   run();
@@ -128,6 +129,18 @@ test("allows the default local Dopa API in the content security policy", () => {
   }
 });
 
+test("keeps the anonymous FC judge path independent from login refresh", () => {
+  assert.equal(requiresSessionRefresh("/demo"), false);
+  assert.equal(
+    requiresSessionRefresh("/demo/dopa-proof-creative.mp4"),
+    false,
+  );
+  assert.equal(requiresSessionRefresh("/fc-proof"), false);
+  assert.equal(requiresSessionRefresh("/api/fc-demo/runs"), false);
+  assert.equal(requiresSessionRefresh("/dashboard"), true);
+  assert.equal(requiresSessionRefresh("/api/google-ads"), true);
+});
+
 test("compares mutation origins against the actual request origin", () => {
   const allowed = new Request("https://dopa.example/api/test", {
     headers: { Origin: "https://dopa.example" },
@@ -196,6 +209,39 @@ await asyncTest("rejects cross-origin, non-JSON, and oversized bodies", async ()
   if (!crossOrigin.success) assert.equal(crossOrigin.response.status, 403);
   if (!wrongType.success) assert.equal(wrongType.response.status, 415);
   if (!oversized.success) assert.equal(oversized.response.status, 413);
+});
+
+await asyncTest("bounds streamed upstream response bodies", async () => {
+  const allowed = await readBoundedResponseText(
+    new Response("safe"),
+    4,
+    "too large",
+  );
+  assert.equal(allowed, "safe");
+
+  await assert.rejects(
+    readBoundedResponseText(
+      new Response("large", {
+        headers: { "Content-Length": "5" },
+      }),
+      4,
+      "too large",
+    ),
+    /too large/,
+  );
+
+  const streamed = new Response(
+    new ReadableStream({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode("large"));
+        controller.close();
+      },
+    }),
+  );
+  await assert.rejects(
+    readBoundedResponseText(streamed, 4, "too large"),
+    /too large/,
+  );
 });
 
 await asyncTest("fails authenticated API quotas closed and returns retry timing", async () => {

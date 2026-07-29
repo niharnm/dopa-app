@@ -1,0 +1,342 @@
+openapi: 3.1.0
+info:
+  title: Dopa AgentRun lifecycle gateway
+  version: 1.0.0
+  description: >
+    Private server-to-server contract between the Dopa web app and an
+    Alibaba Cloud-hosted gateway. The gateway owns Alibaba credentials,
+    calls AgentRun/AIO Sandbox and FC session APIs, and returns only bounded
+    lifecycle evidence.
+servers:
+  - url: https://gateway.example.com
+security:
+  - bearerAuth: []
+paths:
+  /v1/sandboxes:
+    post:
+      operationId: createSandbox
+      description: >
+        Creates an AIO sandbox from the pinned template with session affinity,
+        session isolation, and the configured dynamic mount.
+      parameters:
+        - $ref: "#/components/parameters/ParentId"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateRequest"
+      responses:
+        "200":
+          description: Sandbox is ready.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreateResponse"
+  /v1/sandboxes/{sandboxId}/validate:
+    post:
+      operationId: validateCreative
+      description: >
+        Executes the bounded sample validation inside the sandbox and writes
+        the versioned checkpoint plus a storage sentinel to the dynamic mount.
+      parameters:
+        - $ref: "#/components/parameters/SandboxId"
+        - $ref: "#/components/parameters/ParentId"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        $ref: "#/components/requestBodies/LifecycleRequest"
+      responses:
+        "200":
+          $ref: "#/components/responses/Accepted"
+  /v1/sandboxes/{sandboxId}/pause:
+    post:
+      operationId: pauseSandbox
+      description: >
+        Confirms no invocation is in flight, calls AgentRun PauseSandbox or FC
+        PauseSession, and waits for the authoritative PAUSED state. It never
+        emulates waiting with an idle loop inside the sandbox.
+      parameters:
+        - $ref: "#/components/parameters/SandboxId"
+        - $ref: "#/components/parameters/ParentId"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        $ref: "#/components/requestBodies/LifecycleRequest"
+      responses:
+        "200":
+          description: Snapshot is durable and compute reached PAUSED.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [state, snapshotId]
+                properties:
+                  state:
+                    const: PAUSED
+                  snapshotId:
+                    type: string
+                    minLength: 1
+                    maxLength: 200
+  /v1/sandboxes/{sandboxId}/resume:
+    post:
+      operationId: resumeSandbox
+      description: >
+        Re-authenticates to the control plane, resumes the paused snapshot,
+        runs a health check, and returns hashes calculated inside the restored
+        sandbox and dynamic mount.
+      parameters:
+        - $ref: "#/components/parameters/SandboxId"
+        - $ref: "#/components/parameters/ParentId"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        $ref: "#/components/requestBodies/LifecycleRequest"
+      responses:
+        "200":
+          description: Sandbox is restored and healthy.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required:
+                  [state, checkpointHash, dynamicMountDigest, wakeLatencyMs]
+                properties:
+                  state:
+                    enum: [READY, RUNNING]
+                  checkpointHash:
+                    $ref: "#/components/schemas/Digest"
+                  dynamicMountDigest:
+                    $ref: "#/components/schemas/Digest"
+                  wakeLatencyMs:
+                    type: integer
+                    minimum: 0
+                    maximum: 300000
+  /v1/sandboxes/{sandboxId}/score:
+    post:
+      operationId: scoreCreative
+      description: >
+        Calls the allowlisted private TRIBE v2 target from inside the sandbox.
+        The gateway must reject every scoringTarget not present in its own
+        server-side allowlist.
+      parameters:
+        - $ref: "#/components/parameters/SandboxId"
+        - $ref: "#/components/parameters/ParentId"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        $ref: "#/components/requestBodies/LifecycleRequest"
+      responses:
+        "200":
+          description: Live model result.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required:
+                  [predictedCtrPercent, confidencePercent, recommendation]
+                properties:
+                  predictedCtrPercent:
+                    type: number
+                    minimum: 0
+                    maximum: 100
+                  confidencePercent:
+                    type: number
+                    minimum: 0
+                    maximum: 100
+                  recommendation:
+                    type: string
+                    minLength: 1
+                    maxLength: 500
+  /v1/sandboxes/{sandboxId}/stop:
+    post:
+      operationId: stopSandbox
+      description: Stops the sandbox and releases the session.
+      parameters:
+        - $ref: "#/components/parameters/SandboxId"
+        - $ref: "#/components/parameters/ParentId"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        $ref: "#/components/requestBodies/LifecycleRequest"
+      responses:
+        "200":
+          $ref: "#/components/responses/Accepted"
+  /v1/evidence/isolation:
+    post:
+      operationId: proveIsolation
+      description: >
+        Creates two sandboxes. The second must fail to read the first
+        sandbox's process, egress-only network sentinel, and storage sentinel.
+      requestBody:
+        $ref: "#/components/requestBodies/ProbeRequest"
+      responses:
+        "200":
+          $ref: "#/components/responses/Probe"
+  /v1/evidence/elasticity:
+    post:
+      operationId: proveElasticity
+      description: >
+        Runs the explicitly approved burst and reports attempted, successful,
+        failed, p50/p95 creation latency, creations/minute, and peak/second.
+      requestBody:
+        $ref: "#/components/requestBodies/ProbeRequest"
+      responses:
+        "200":
+          $ref: "#/components/responses/Probe"
+  /v1/evidence/e2b-compatibility:
+    post:
+      operationId: proveE2BCompatibility
+      description: >
+        Runs one pinned script through E2B and AgentRun adapters. Returns the
+        source digest and both normalized output digests.
+      requestBody:
+        $ref: "#/components/requestBodies/ProbeRequest"
+      responses:
+        "200":
+          $ref: "#/components/responses/Probe"
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+  parameters:
+    ParentId:
+      name: X-Acs-Parent-Id
+      in: header
+      required: true
+      schema:
+        type: string
+        minLength: 6
+        maxLength: 32
+    IdempotencyKey:
+      name: X-Dopa-Idempotency-Key
+      in: header
+      required: true
+      schema:
+        type: string
+        minLength: 8
+        maxLength: 500
+    SandboxId:
+      name: sandboxId
+      in: path
+      required: true
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 200
+  schemas:
+    Digest:
+      type: string
+      pattern: "^[a-f0-9]{64}$"
+    CreateRequest:
+      type: object
+      additionalProperties: false
+      required: [runId, traceId, templateName, idleTimeoutSeconds]
+      properties:
+        runId:
+          type: string
+          format: uuid
+        traceId:
+          type: string
+          format: uuid
+        templateName:
+          type: string
+          minLength: 1
+          maxLength: 128
+        idleTimeoutSeconds:
+          type: integer
+          minimum: 60
+          maximum: 3600
+    CreateResponse:
+      type: object
+      additionalProperties: false
+      required: [sandboxId, state, sessionId, dynamicMountId]
+      properties:
+        sandboxId:
+          type: string
+        state:
+          enum: [READY, RUNNING]
+        sessionId:
+          type: string
+        dynamicMountId:
+          type: string
+    LifecycleRequest:
+      type: object
+      additionalProperties: false
+      required: [runId, traceId, templateName]
+      properties:
+        runId:
+          type: string
+          format: uuid
+        traceId:
+          type: string
+          format: uuid
+        templateName:
+          type: string
+        checkpointHash:
+          $ref: "#/components/schemas/Digest"
+        scenario:
+          const: retail_launch
+        scoringTarget:
+          type: string
+          format: uri
+    ProbeRequest:
+      type: object
+      additionalProperties: false
+      required: [probeId, requestedAt]
+      properties:
+        probeId:
+          type: string
+          format: uuid
+        requestedAt:
+          type: string
+          format: date-time
+        targetCreates:
+          type: integer
+          minimum: 2
+          maximum: 100000
+        stressAcknowledged:
+          type: boolean
+  requestBodies:
+    LifecycleRequest:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/LifecycleRequest"
+    ProbeRequest:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ProbeRequest"
+  responses:
+    Accepted:
+      description: Operation completed.
+      content:
+        application/json:
+          schema:
+            type: object
+            additionalProperties: false
+            required: [accepted]
+            properties:
+              accepted:
+                const: true
+    Probe:
+      description: Signed, structured probe result.
+      content:
+        application/json:
+          schema:
+            type: object
+            additionalProperties: false
+            required: [passed, metrics, note]
+            properties:
+              passed:
+                type: boolean
+              metrics:
+                type: object
+              evidence:
+                type: object
+              note:
+                type: string
+                maxLength: 500

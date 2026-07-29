@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="360" viewBox="0 0 640 360">
+  <defs>
+    <linearGradient id="panel" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#111927"/>
+      <stop offset="1" stop-color="#0a0f18"/>
+    </linearGradient>
+  </defs>
+  <rect width="640" height="360" fill="#080b12"/>
+  <text x="54" y="62" fill="#55e6d9" font-family="Arial, sans-serif" font-size="24" font-weight="700" letter-spacing="3">DOPA</text>
+  <rect x="365" y="61" width="220" height="238" rx="22" fill="url(#panel)" stroke="#263447"/>
+  <circle cx="403" cy="105" r="8" fill="#55e6d9"/>
+  <rect x="425" y="98" width="108" height="12" rx="6" fill="#263447"/>
+  <rect x="395" y="145" width="160" height="16" rx="8" fill="#1c2939"/>
+  <rect x="395" y="178" width="126" height="16" rx="8" fill="#1c2939"/>
+  <rect x="395" y="227" width="105" height="36" rx="18" fill="#55e6d9"/>
+  <text x="54" y="142" fill="#f8fafc" font-family="Arial, sans-serif" font-size="35" font-weight="700">Human judgment.</text>
+  <text x="54" y="188" fill="#f8fafc" font-family="Arial, sans-serif" font-size="35" font-weight="700">Then model evidence.</text>
+  <text x="56" y="238" fill="#aeb7c5" font-family="Arial, sans-serif" font-size="18">Pause compute while the decision waits.</text>
+</svg>

@@ -202,7 +202,10 @@ export function Denver() {
   }
 
   return (
-    <div className="fixed bottom-3 right-3 z-50 sm:bottom-6 sm:right-6">
+    <div
+      data-denver-root
+      className="fixed bottom-3 right-3 z-50 sm:bottom-6 sm:right-6"
+    >
       {open ? (
         <section
           role="dialog"

@@ -1,10 +1,11 @@
 {
   "version": 2,
-  "sourceHash": "2f76f58d9b2ba94d",
+  "sourceHash": "b19f444a73eaa531",
   "routes": [
     "/",
     "/dashboard",
     "/demo",
+    "/fc-proof",
     "/login",
     "/onboarding",
     "/privacy",
@@ -38,6 +39,32 @@
     }
   ],
   "chunks": [
+    {
+      "id": "app-demo-page-tsx",
+      "area": "Demo",
+      "source": "app/demo/page.tsx",
+      "route": "/demo",
+      "text": [
+        "FC Sandbox proof demo — Dopa",
+        "Run Dopa's approval-gated creative scoring lifecycle and inspect its AgentRun evidence."
+      ]
+    },
+    {
+      "id": "app-fc-proof-page-tsx",
+      "area": "Fc Proof",
+      "source": "app/fc-proof/page.tsx",
+      "route": "/fc-proof",
+      "text": [
+        "FC Sandbox evidence ledger — Dopa",
+        "A truthful, source-linked capability ledger for Dopa's Alibaba Cloud FC Sandbox integration.",
+        "Evidence ledger / FC Sandbox",
+        "Claims are cheap. This page separates implementation from proof.",
+        "A capability becomes verified only after a signed live harness run stores its source digest and observation time. Configuration alone never receives a green badge.",
+        "Implementation map",
+        "From browser intent to isolated compute",
+        "Run the golden path →"
+      ]
+    },
     {
       "id": "app-layout-tsx",
       "area": "Layout",
@@ -565,11 +592,60 @@
       "text": [
         "Features",
         "Demo",
+        "FC proof",
         "Privacy",
         "Dopa",
         "Primary",
         "Dashboard",
         "Log in"
+      ]
+    },
+    {
+      "id": "components-demo-fcproofledger-tsx",
+      "area": "Fc Proof Ledger",
+      "source": "components/demo/FcProofLedger.tsx",
+      "text": [
+        "Capability evidence",
+        "verified ·",
+        "configured ·",
+        "pending",
+        "Live badges are intentionally withheld. AgentRun credentials and a signed evidence run are required before any provider claim is marked verified."
+      ]
+    },
+    {
+      "id": "components-demo-fcsandboxdemo-tsx",
+      "area": "Fc Sandbox Demo",
+      "source": "components/demo/FcSandboxDemo.tsx",
+      "text": [
+        "Run accepted",
+        "Sandbox provisioned",
+        "Sandbox validates input",
+        "Approval checkpoint",
+        "Compute hibernated",
+        "State restored",
+        "TRIBE v2 inference",
+        "Result committed",
+        "Alibaba Cloud FC Sandbox / golden path",
+        "One creative. One sleeping sandbox. One proof trail.",
+        "Dopa validates a sample ad, checkpoints at human approval, pauses compute, restores the exact state, and only then calls TRIBE v2. Every event below states whether it is cloud evidence or a local demonstration.",
+        "Judge path",
+        "Start → inspect the paused boundary → approve once → verify the checkpoint digest → inspect the evidence ledger.",
+        "Typical local walkthrough: under 30 seconds",
+        "New run",
+        "Active compute",
+        "Hibernation gap",
+        "Wake latency",
+        "Checkpoint v",
+        "sha256:",
+        "Trace spine",
+        "durable events",
+        "Start the sample to generate a trace.",
+        "Predicted CTR",
+        "Model",
+        "Recommendation",
+        "Truth boundary",
+        "Purple means implemented or demonstrated. Green appears only after a signed live harness writes immutable evidence metadata. Local timing is never presented as Alibaba billing or performance.",
+        "Inspect the full evidence ledger →"
       ]
     },
     {
