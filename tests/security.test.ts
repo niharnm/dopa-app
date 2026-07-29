@@ -13,6 +13,7 @@ import {
 } from "../lib/validation";
 import { enforceApiQuota } from "../utils/api-quota";
 import { normalizeDopaApiBaseUrl } from "../lib/dopa-api";
+import { contentSecurityPolicy } from "../proxy";
 
 function test(name: string, run: () => void) {
   run();
@@ -108,6 +109,23 @@ test("requires HTTPS for non-loopback scoring endpoints", () => {
   assert.throws(() =>
     normalizeDopaApiBaseUrl("https://user:secret@api.dopa.example"),
   );
+});
+
+test("allows the default local Dopa API in the content security policy", () => {
+  const configuredApiUrl = process.env.NEXT_PUBLIC_DOPA_API_URL;
+  delete process.env.NEXT_PUBLIC_DOPA_API_URL;
+  try {
+    assert.match(
+      contentSecurityPolicy("test-nonce"),
+      /connect-src [^;]*http:\/\/localhost:8000/,
+    );
+  } finally {
+    if (configuredApiUrl === undefined) {
+      delete process.env.NEXT_PUBLIC_DOPA_API_URL;
+    } else {
+      process.env.NEXT_PUBLIC_DOPA_API_URL = configuredApiUrl;
+    }
+  }
 });
 
 test("compares mutation origins against the actual request origin", () => {

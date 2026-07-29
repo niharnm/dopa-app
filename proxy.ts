@@ -1,4 +1,5 @@
 import { type NextRequest } from "next/server";
+import { resolveDopaApiBaseUrl } from "@/lib/dopa-api-config";
 import { updateSession } from "@/utils/supabase/middleware";
 
 function originSource(value: string | undefined): string | null {
@@ -13,11 +14,13 @@ function originSource(value: string | undefined): string | null {
   }
 }
 
-function contentSecurityPolicy(nonce: string) {
+export function contentSecurityPolicy(nonce: string) {
   const isDevelopment = process.env.NODE_ENV === "development";
   const connectSources = new Set(["'self'"]);
   const supabaseOrigin = originSource(process.env.NEXT_PUBLIC_SUPABASE_URL);
-  const dopaApiOrigin = originSource(process.env.NEXT_PUBLIC_DOPA_API_URL);
+  const dopaApiOrigin = originSource(
+    resolveDopaApiBaseUrl(process.env.NEXT_PUBLIC_DOPA_API_URL),
+  );
 
   if (supabaseOrigin) {
     connectSources.add(supabaseOrigin);

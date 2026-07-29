@@ -1,32 +1,15 @@
 import { isJsonObject, stringValue } from "@/lib/validation";
+import { resolveDopaApiBaseUrl } from "@/lib/dopa-api-config";
 
-const DEFAULT_API_BASE_URL = "http://localhost:8000";
+export { normalizeDopaApiBaseUrl } from "@/lib/dopa-api-config";
+
 const MAX_SCORE_RESPONSE_BYTES = 1024 * 1024;
 const MAX_BRAIN_MODEL_BYTES = 32 * 1024 * 1024;
 const MAX_BRAIN_FRAMES = 600;
 const MAX_BRAIN_VERTICES_PER_HEMISPHERE = 200_000;
 
-export function normalizeDopaApiBaseUrl(value: string): string {
-  const url = new URL(value);
-  const isLoopback =
-    url.hostname === "localhost" ||
-    url.hostname.endsWith(".localhost") ||
-    url.hostname === "[::1]" ||
-    /^127(?:\.\d{1,3}){3}$/.test(url.hostname);
-  if (
-    url.username ||
-    url.password ||
-    (url.protocol !== "https:" && !(url.protocol === "http:" && isLoopback))
-  ) {
-    throw new Error(
-      "Dopa scoring endpoints must use HTTPS unless they are on localhost.",
-    );
-  }
-  return url.href.replace(/\/+$/, "");
-}
-
-export const DOPA_API_BASE_URL = normalizeDopaApiBaseUrl(
-  process.env.NEXT_PUBLIC_DOPA_API_URL || DEFAULT_API_BASE_URL,
+export const DOPA_API_BASE_URL = resolveDopaApiBaseUrl(
+  process.env.NEXT_PUBLIC_DOPA_API_URL,
 );
 
 export type BrainRegionResponse = {
