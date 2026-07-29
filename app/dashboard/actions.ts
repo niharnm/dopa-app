@@ -9,6 +9,8 @@ import {
   type Business,
   type BusinessInput,
 } from "@/lib/business-types";
+import { isUuid } from "@/lib/validation";
+import { databaseFailure } from "@/utils/action-security";
 
 async function requireUser() {
   const supabase = createClient(await cookies());
@@ -29,6 +31,8 @@ function revalidateDashboard() {
 }
 
 export async function selectBusiness(businessId: string) {
+  if (!isUuid(businessId)) return { error: "Invalid business ID" };
+
   const auth = await requireUser();
   if (auth.error || !auth.user) return { error: auth.error ?? "Not authenticated" };
 
@@ -39,7 +43,13 @@ export async function selectBusiness(businessId: string) {
     .eq("owner_id", auth.user.id)
     .maybeSingle();
 
-  if (businessError) return { error: businessError.message };
+  if (businessError) {
+    return databaseFailure(
+      "select_business_owner",
+      businessError,
+      "The business could not be selected. Try again.",
+    );
+  }
   if (!business) return { error: "Business not found" };
 
   const { error } = await auth.supabase.from("user_preferences").upsert(
@@ -51,10 +61,16 @@ export async function selectBusiness(businessId: string) {
     { onConflict: "user_id" },
   );
 
-  if (error) return { error: error.message };
+  if (error) {
+    return databaseFailure(
+      "select_business_preference",
+      error,
+      "The business could not be selected. Try again.",
+    );
+  }
 
   revalidateDashboard();
-  return { success: true };
+  return { success: true, error: null };
 }
 
 export async function createBusiness(input: BusinessInput) {
@@ -74,7 +90,7 @@ export async function createBusiness(input: BusinessInput) {
     .select(BUSINESS_SELECT)
     .single();
 
-  if (error) return { error: error.message };
+  if (error) return databaseFailure("create_business", error);
 
   await auth.supabase.from("user_preferences").upsert(
     {
@@ -86,10 +102,12 @@ export async function createBusiness(input: BusinessInput) {
   );
 
   revalidateDashboard();
-  return { success: true, business: data as Business };
+  return { success: true, business: data as Business, error: null };
 }
 
 export async function updateBusiness(businessId: string, input: BusinessInput) {
+  if (!isUuid(businessId)) return { error: "Invalid business ID" };
+
   const auth = await requireUser();
   if (auth.error || !auth.user) return { error: auth.error ?? "Not authenticated" };
 
@@ -107,14 +125,16 @@ export async function updateBusiness(businessId: string, input: BusinessInput) {
     .select(BUSINESS_SELECT)
     .maybeSingle();
 
-  if (error) return { error: error.message };
+  if (error) return databaseFailure("update_business", error);
   if (!data) return { error: "Business not found" };
 
   revalidateDashboard();
-  return { success: true, business: data as Business };
+  return { success: true, business: data as Business, error: null };
 }
 
 export async function deleteBusiness(businessId: string) {
+  if (!isUuid(businessId)) return { error: "Invalid business ID" };
+
   const auth = await requireUser();
   if (auth.error || !auth.user) return { error: auth.error ?? "Not authenticated" };
 
@@ -123,7 +143,13 @@ export async function deleteBusiness(businessId: string) {
     .select("id")
     .eq("owner_id", auth.user.id);
 
-  if (listError) return { error: listError.message };
+  if (listError) {
+    return databaseFailure(
+      "list_businesses_before_delete",
+      listError,
+      "The business could not be deleted. Try again.",
+    );
+  }
 
   const { error } = await auth.supabase
     .from("businesses")
@@ -131,7 +157,13 @@ export async function deleteBusiness(businessId: string) {
     .eq("id", businessId)
     .eq("owner_id", auth.user.id);
 
-  if (error) return { error: error.message };
+  if (error) {
+    return databaseFailure(
+      "delete_business",
+      error,
+      "The business could not be deleted. Try again.",
+    );
+  }
 
   const remaining = (owned ?? []).filter((b) => b.id !== businessId);
 
@@ -146,7 +178,11 @@ export async function deleteBusiness(businessId: string) {
     );
 
     revalidateDashboard();
-    return { success: true, redirectTo: "/onboarding" as const };
+    return {
+      success: true,
+      redirectTo: "/onboarding" as const,
+      error: null,
+    };
   }
 
   const nextId = remaining[0]?.id;
@@ -162,5 +198,5 @@ export async function deleteBusiness(businessId: string) {
   }
 
   revalidateDashboard();
-  return { success: true };
+  return { success: true, error: null };
 }

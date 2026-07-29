@@ -14,11 +14,11 @@ import {
   openGoogleAdsToken,
   sealGoogleAdsToken,
 } from "@/utils/google-ads-token";
-
-const NO_STORE_HEADERS = {
-  "Cache-Control": "private, no-store, max-age=0",
-  Vary: "Cookie",
-};
+import { enforceApiQuota } from "@/utils/api-quota";
+import {
+  isSameOriginRequest,
+  NO_STORE_HEADERS,
+} from "@/utils/http-security";
 
 function json(
   body: GoogleAdsApiResponse | Record<string, unknown>,
@@ -36,7 +36,7 @@ async function authenticatedCookieStore() {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  return user ? { cookieStore, userId: user.id } : null;
+  return user ? { cookieStore, supabase, userId: user.id } : null;
 }
 
 function environmentCredentials(accessToken?: string): GoogleAdsCredentials {
@@ -64,6 +64,12 @@ export async function GET() {
     );
   }
 
+  const quotaResponse = await enforceApiQuota(
+    auth.supabase,
+    "google_ads_read",
+  );
+  if (quotaResponse) return quotaResponse;
+
   const { cookieStore, userId } = auth;
   const credentials = environmentCredentials();
   const encryptionKey = process.env.GOOGLE_ADS_TOKEN_ENCRYPTION_KEY;
@@ -85,8 +91,7 @@ export async function GET() {
         configured: false,
         source: "unavailable",
         code: "configuration_required",
-        error: `Google Ads server configuration is incomplete: ${missingEnvVars.join(", ")}.`,
-        requiredEnvVars: missingEnvVars,
+        error: "Google Ads server configuration is incomplete.",
         campaigns: [],
       },
       503,
@@ -178,7 +183,11 @@ export async function GET() {
   return response;
 }
 
-export async function DELETE() {
+export async function DELETE(request: Request) {
+  if (!isSameOriginRequest(request)) {
+    return json({ error: "This request origin is not allowed." }, 403);
+  }
+
   const auth = await authenticatedCookieStore();
   if (!auth) {
     return json({ error: "Authentication required." }, 401);

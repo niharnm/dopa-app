@@ -1,3 +1,5 @@
+import { normalizeOptionalHttpUrl } from "@/lib/validation";
+
 export type Business = {
   id: string;
   name: string;
@@ -110,11 +112,40 @@ export function normalizeBusinessInput(input: BusinessInput) {
   if (!name) {
     return { error: "Business name is required" as const };
   }
+  if (name.length > 160) {
+    return { error: "Business name must be 160 characters or fewer" as const };
+  }
+
+  const website = normalizeOptionalHttpUrl(input.website);
+  if (!website.success) return { error: website.error };
+
+  const fields = [
+    ["industry", input.industry, 120],
+    ["description", input.description, 2_000],
+    ["target audience", input.target_audience, 2_000],
+    ["brand voice", input.brand_voice, 120],
+    ["value proposition", input.value_proposition, 2_000],
+    ["competitors", input.competitors, 2_000],
+    ["markets", input.markets, 1_000],
+    ["campaign goal", input.campaign_goal, 120],
+    ["price range", input.price_range, 120],
+    ["target keywords", input.target_keywords, 2_000],
+  ] as const;
+  const invalidField = fields.find(
+    ([, value, maximum]) =>
+      value !== undefined &&
+      (value.length > maximum || /[\u0000]/.test(value)),
+  );
+  if (invalidField) {
+    return {
+      error: `${invalidField[0]} is too long or contains invalid characters`,
+    };
+  }
 
   return {
     data: {
       name,
-      website: input.website?.trim() || null,
+      website: website.value,
       industry: input.industry?.trim() || null,
       description: input.description?.trim() || null,
       target_audience: input.target_audience?.trim() || null,

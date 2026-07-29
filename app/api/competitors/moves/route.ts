@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
 import {
-  errorMessage,
   isJsonObject,
   parseGroqJson,
   stringValue,
 } from "@/lib/validation";
-import { getAuthenticatedUser } from "@/utils/api-auth";
+import { getApiAuth } from "@/utils/api-auth";
+import { enforceApiQuota } from "@/utils/api-quota";
+import { readJsonObjectRequest } from "@/utils/http-security";
 
 export interface CompetitorMove {
   move_type: "ad_launched" | "price_change" | "positioning_pivot" | "hook_change";
@@ -76,20 +77,24 @@ function normalizeMoves(value: unknown): CompetitorMove[] {
 
 export async function POST(req: Request) {
   try {
-    if (!(await getAuthenticatedUser())) {
+    const parsedRequest = await readJsonObjectRequest(req, 4_096);
+    if (!parsedRequest.success) return parsedRequest.response;
+
+    const auth = await getApiAuth();
+    if (!auth) {
       return NextResponse.json(
         { error: "Sign in before generating competitor scenarios." },
         { status: 401 },
       );
     }
 
-    const body: unknown = await req.json();
-    if (!isJsonObject(body)) {
-      return NextResponse.json(
-        { error: "A competitor is required." },
-        { status: 400 },
-      );
-    }
+    const quotaResponse = await enforceApiQuota(
+      auth.supabase,
+      "competitor_moves",
+    );
+    if (quotaResponse) return quotaResponse;
+
+    const body = parsedRequest.data;
     const competitorName = stringValue(body.competitorName, 160);
     const primaryAngle = stringValue(body.primaryAngle, 1_000);
     if (!competitorName) {
@@ -102,8 +107,8 @@ export async function POST(req: Request) {
     const apiKey = process.env.GROQ_API_KEY;
     if (!apiKey) {
       return NextResponse.json(
-        { error: "GROQ_API_KEY is not configured on the server." },
-        { status: 500 }
+        { error: "Competitor scenarios are not configured yet." },
+        { status: 503 }
       );
     }
 
@@ -158,13 +163,11 @@ Return ONLY valid JSON. Ensure risk_level is one of ['low', 'medium', 'high'] an
       moves: normalizeMoves(parsed.moves),
     });
   } catch (error: unknown) {
+    console.error("Competitor scenario generation failed.", {
+      name: error instanceof Error ? error.name : "unknown",
+    });
     return NextResponse.json(
-      {
-        error: errorMessage(
-          error,
-          "Failed to generate competitor scenarios.",
-        ),
-      },
+      { error: "Failed to generate competitor scenarios." },
       { status: 500 },
     );
   }

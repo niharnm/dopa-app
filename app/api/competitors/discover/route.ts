@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
 import {
-  errorMessage,
   isJsonObject,
   parseGroqJson,
   stringValue,
 } from "@/lib/validation";
-import { getAuthenticatedUser } from "@/utils/api-auth";
+import { getApiAuth } from "@/utils/api-auth";
+import { enforceApiQuota } from "@/utils/api-quota";
+import { readJsonObjectRequest } from "@/utils/http-security";
 
 export interface DiscoveredCompetitor {
   name: string;
@@ -45,21 +46,24 @@ function normalizeCompetitors(value: unknown): DiscoveredCompetitor[] {
 
 export async function POST(req: Request) {
   try {
-    if (!(await getAuthenticatedUser())) {
+    const parsedRequest = await readJsonObjectRequest(req, 8_192);
+    if (!parsedRequest.success) return parsedRequest.response;
+
+    const auth = await getApiAuth();
+    if (!auth) {
       return NextResponse.json(
         { error: "Sign in before discovering competitors." },
         { status: 401 },
       );
     }
 
-    const body: unknown = await req.json();
-    if (!isJsonObject(body)) {
-      return NextResponse.json(
-        { error: "A business profile is required." },
-        { status: 400 },
-      );
-    }
+    const quotaResponse = await enforceApiQuota(
+      auth.supabase,
+      "competitor_discover",
+    );
+    if (quotaResponse) return quotaResponse;
 
+    const body = parsedRequest.data;
     const businessName = stringValue(body.businessName, 160);
     const industry = stringValue(body.industry, 120);
     const targetAudience = stringValue(body.targetAudience, 1_000);
@@ -74,8 +78,8 @@ export async function POST(req: Request) {
     const apiKey = process.env.GROQ_API_KEY;
     if (!apiKey) {
       return NextResponse.json(
-        { error: "GROQ_API_KEY is not configured on the server." },
-        { status: 500 }
+        { error: "Competitor discovery is not configured yet." },
+        { status: 503 }
       );
     }
 
@@ -134,8 +138,11 @@ The predicted_ctr field is only a clearly labeled AI estimate, not observed camp
       competitors: normalizeCompetitors(parsed.competitors),
     });
   } catch (error: unknown) {
+    console.error("Competitor discovery failed.", {
+      name: error instanceof Error ? error.name : "unknown",
+    });
     return NextResponse.json(
-      { error: errorMessage(error, "Failed to discover competitors.") },
+      { error: "Failed to discover competitors." },
       { status: 500 },
     );
   }

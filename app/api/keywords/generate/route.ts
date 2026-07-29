@@ -5,7 +5,6 @@ import {
   type GoogleAdsCredentials,
 } from "@/utils/google-ads-client";
 import {
-  errorMessage,
   isJsonObject,
   parseGroqJson,
   stringValue,
@@ -16,6 +15,8 @@ import {
   GOOGLE_ADS_TOKEN_COOKIE,
   GOOGLE_ADS_TOKEN_MAX_AGE_SECONDS,
 } from "@/utils/google-ads-token";
+import { enforceApiQuota } from "@/utils/api-quota";
+import { readJsonObjectRequest } from "@/utils/http-security";
 
 export interface KeywordResult {
   keyword: string;
@@ -86,6 +87,9 @@ function normalizeGeneratedKeywords(value: unknown): GeneratedKeyword[] {
 
 export async function POST(req: Request) {
   try {
+    const parsedRequest = await readJsonObjectRequest(req, 16_384);
+    if (!parsedRequest.success) return parsedRequest.response;
+
     const auth = await getApiAuth();
     if (!auth) {
       return NextResponse.json(
@@ -94,13 +98,13 @@ export async function POST(req: Request) {
       );
     }
 
-    const body: unknown = await req.json();
-    if (!isJsonObject(body)) {
-      return NextResponse.json(
-        { error: "A business profile is required." },
-        { status: 400 },
-      );
-    }
+    const quotaResponse = await enforceApiQuota(
+      auth.supabase,
+      "keyword_generate",
+    );
+    if (quotaResponse) return quotaResponse;
+
+    const body = parsedRequest.data;
     const scope = body.scope === "product" ? "product" : "brand";
     const businessName = stringValue(body.businessName, 160);
     const targetDemographic = stringValue(body.targetDemographic, 1_000);
@@ -120,8 +124,8 @@ export async function POST(req: Request) {
     const apiKey = process.env.GROQ_API_KEY;
     if (!apiKey) {
       return NextResponse.json(
-        { error: "GROQ_API_KEY is not configured on the server." },
-        { status: 500 }
+        { error: "Keyword generation is not configured yet." },
+        { status: 503 }
       );
     }
 
@@ -264,8 +268,11 @@ Response format MUST be strict JSON matching this schema:
     }
     return nextResponse;
   } catch (error: unknown) {
+    console.error("Keyword generation failed.", {
+      name: error instanceof Error ? error.name : "unknown",
+    });
     return NextResponse.json(
-      { error: errorMessage(error, "Failed to generate keywords.") },
+      { error: "Failed to generate keywords." },
       { status: 500 },
     );
   }

@@ -5,11 +5,22 @@ import {
   sealGoogleAdsToken,
 } from "@/utils/google-ads-token";
 import { safeNextUrl } from "@/utils/safe-next-url";
+import { NO_STORE_HEADERS } from "@/utils/http-security";
+import { siteOriginFromRequest } from "@/utils/site-origin";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
 export async function GET(request: Request) {
-  const { searchParams, origin } = new URL(request.url);
+  const { searchParams } = new URL(request.url);
+  let origin: string;
+  try {
+    origin = siteOriginFromRequest(request.url);
+  } catch {
+    return NextResponse.json(
+      { error: "Authentication is not configured for this deployment." },
+      { status: 500, headers: NO_STORE_HEADERS },
+    );
+  }
   const code = searchParams.get("code");
   const redirectUrl = safeNextUrl(searchParams.get("next"), origin);
   const googleAdsRequested = searchParams.get("google_ads") === "1";
@@ -60,7 +71,7 @@ export async function GET(request: Request) {
         }
         response.cookies.set(GOOGLE_ADS_TOKEN_COOKIE, sealedToken, {
           httpOnly: true,
-          secure: process.env.NODE_ENV === "production",
+          secure: new URL(origin).protocol === "https:",
           sameSite: "lax",
           path: "/",
           maxAge: GOOGLE_ADS_TOKEN_MAX_AGE_SECONDS,

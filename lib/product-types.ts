@@ -64,7 +64,8 @@ function parseList(value?: string): string[] {
   return value
     .split(/[,\n]/)
     .map((s) => s.trim())
-    .filter(Boolean);
+    .filter(Boolean)
+    .slice(0, 50);
 }
 
 export function normalizeProductInput(input: ProductInput) {
@@ -72,15 +73,45 @@ export function normalizeProductInput(input: ProductInput) {
   if (!product_name) {
     return { error: "Product name is required" as const };
   }
+  if (product_name.length > 160 || /[\u0000]/.test(product_name)) {
+    return { error: "Product name must be 160 characters or fewer" as const };
+  }
+
+  const fields = [
+    ["category", input.category, 120],
+    ["value proposition", input.value_prop, 2_000],
+    ["target demographic", input.target_sub_demographic, 2_000],
+    ["key features", input.key_features, 5_000],
+    ["creative hooks", input.creative_hooks, 5_000],
+  ] as const;
+  const invalidField = fields.find(
+    ([, value, maximum]) =>
+      value !== undefined &&
+      (value.length > maximum || /[\u0000]/.test(value)),
+  );
+  if (invalidField) {
+    return {
+      error: `${invalidField[0]} is too long or contains invalid characters`,
+    };
+  }
 
   const priceRaw = input.price?.trim();
   let price: number | null = null;
   if (priceRaw) {
     const parsed = Number(priceRaw.replace(/[^0-9.]/g, ""));
-    if (Number.isNaN(parsed)) {
+    if (!Number.isFinite(parsed) || parsed < 0 || parsed > 999_999_999) {
       return { error: "Enter a valid price" as const };
     }
     price = parsed;
+  }
+
+  const keyFeatures = parseList(input.key_features);
+  const creativeHooks = parseList(input.creative_hooks);
+  if (
+    keyFeatures.some((item) => item.length > 500) ||
+    creativeHooks.some((item) => item.length > 500)
+  ) {
+    return { error: "List items must be 500 characters or fewer" as const };
   }
 
   return {
@@ -90,8 +121,8 @@ export function normalizeProductInput(input: ProductInput) {
       price,
       value_prop: input.value_prop?.trim() || null,
       target_sub_demographic: input.target_sub_demographic?.trim() || null,
-      key_features: parseList(input.key_features),
-      creative_hooks: parseList(input.creative_hooks),
+      key_features: keyFeatures,
+      creative_hooks: creativeHooks,
     },
   };
 }

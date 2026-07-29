@@ -9,6 +9,8 @@ import {
   type Product,
   type ProductInput,
 } from "@/lib/product-types";
+import { isUuid } from "@/lib/validation";
+import { databaseFailure } from "@/utils/action-security";
 
 async function requireUser() {
   const supabase = createClient(await cookies());
@@ -35,7 +37,13 @@ async function assertBusinessOwner(
     .eq("owner_id", userId)
     .maybeSingle();
 
-  if (error) return { error: error.message };
+  if (error) {
+    return databaseFailure(
+      "assert_product_business_owner",
+      error,
+      "The business could not be verified. Try again.",
+    );
+  }
   if (!data) return { error: "Business not found" };
   return { ok: true as const };
 }
@@ -46,11 +54,22 @@ function revalidate() {
 }
 
 export async function listProducts(businessId: string) {
+  if (!isUuid(businessId)) {
+    return { error: "Invalid business ID", products: [] as Product[] };
+  }
+
   const auth = await requireUser();
-  if (auth.error || !auth.user) return { error: auth.error ?? "Not authenticated" };
+  if (auth.error || !auth.user) {
+    return {
+      error: auth.error ?? "Not authenticated",
+      products: [] as Product[],
+    };
+  }
 
   const owned = await assertBusinessOwner(auth.supabase, auth.user.id, businessId);
-  if ("error" in owned) return { error: owned.error };
+  if ("error" in owned) {
+    return { error: owned.error, products: [] as Product[] };
+  }
 
   const { data, error } = await auth.supabase
     .from("products")
@@ -58,11 +77,22 @@ export async function listProducts(businessId: string) {
     .eq("business_id", businessId)
     .order("created_at", { ascending: true });
 
-  if (error) return { error: error.message };
-  return { products: (data ?? []) as Product[] };
+  if (error) {
+    return {
+      ...databaseFailure(
+        "list_products",
+        error,
+        "Products could not be loaded. Try again.",
+      ),
+      products: [] as Product[],
+    };
+  }
+  return { products: (data ?? []) as Product[], error: null };
 }
 
 export async function createProduct(businessId: string, input: ProductInput) {
+  if (!isUuid(businessId)) return { error: "Invalid business ID" };
+
   const auth = await requireUser();
   if (auth.error || !auth.user) return { error: auth.error ?? "Not authenticated" };
 
@@ -82,13 +112,15 @@ export async function createProduct(businessId: string, input: ProductInput) {
     .select(PRODUCT_SELECT)
     .single();
 
-  if (error) return { error: error.message };
+  if (error) return databaseFailure("create_product", error);
 
   revalidate();
-  return { success: true, product: data as Product };
+  return { success: true, product: data as Product, error: null };
 }
 
 export async function updateProduct(productId: string, input: ProductInput) {
+  if (!isUuid(productId)) return { error: "Invalid product ID" };
+
   const auth = await requireUser();
   if (auth.error || !auth.user) return { error: auth.error ?? "Not authenticated" };
 
@@ -98,7 +130,13 @@ export async function updateProduct(productId: string, input: ProductInput) {
     .eq("id", productId)
     .maybeSingle();
 
-  if (fetchError) return { error: fetchError.message };
+  if (fetchError) {
+    return databaseFailure(
+      "load_product_for_update",
+      fetchError,
+      "The product could not be updated. Try again.",
+    );
+  }
   if (!existing) return { error: "Product not found" };
 
   const owned = await assertBusinessOwner(
@@ -121,13 +159,15 @@ export async function updateProduct(productId: string, input: ProductInput) {
     .select(PRODUCT_SELECT)
     .single();
 
-  if (error) return { error: error.message };
+  if (error) return databaseFailure("update_product", error);
 
   revalidate();
-  return { success: true, product: data as Product };
+  return { success: true, product: data as Product, error: null };
 }
 
 export async function deleteProduct(productId: string) {
+  if (!isUuid(productId)) return { error: "Invalid product ID" };
+
   const auth = await requireUser();
   if (auth.error || !auth.user) return { error: auth.error ?? "Not authenticated" };
 
@@ -137,7 +177,13 @@ export async function deleteProduct(productId: string) {
     .eq("id", productId)
     .maybeSingle();
 
-  if (fetchError) return { error: fetchError.message };
+  if (fetchError) {
+    return databaseFailure(
+      "load_product_for_delete",
+      fetchError,
+      "The product could not be deleted. Try again.",
+    );
+  }
   if (!existing) return { error: "Product not found" };
 
   const owned = await assertBusinessOwner(
@@ -148,8 +194,14 @@ export async function deleteProduct(productId: string) {
   if ("error" in owned) return { error: owned.error };
 
   const { error } = await auth.supabase.from("products").delete().eq("id", productId);
-  if (error) return { error: error.message };
+  if (error) {
+    return databaseFailure(
+      "delete_product",
+      error,
+      "The product could not be deleted. Try again.",
+    );
+  }
 
   revalidate();
-  return { success: true };
+  return { success: true, error: null };
 }

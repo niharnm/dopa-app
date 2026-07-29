@@ -5,11 +5,13 @@ import {
   parseGroqJson,
   stringValue,
 } from "@/lib/validation";
-import { getAuthenticatedUser } from "@/utils/api-auth";
 import {
   fetchPublicWebsite,
   readLimitedResponseText,
 } from "@/utils/public-url";
+import { enforceApiQuota } from "@/utils/api-quota";
+import { readJsonObjectRequest } from "@/utils/http-security";
+import { getApiAuth } from "@/utils/api-auth";
 
 export type BusinessDiscoveryProfile = {
   name?: string;
@@ -63,17 +65,24 @@ function normalizeProfile(value: unknown): BusinessDiscoveryProfile {
 
 export async function POST(req: Request) {
   try {
-    if (!(await getAuthenticatedUser())) {
+    const parsedRequest = await readJsonObjectRequest(req, 4_096);
+    if (!parsedRequest.success) return parsedRequest.response;
+
+    const auth = await getApiAuth();
+    if (!auth) {
       return NextResponse.json(
         { error: "Sign in before scanning a website." },
         { status: 401 },
       );
     }
 
-    const body: unknown = await req.json();
-    const websiteUrl = isJsonObject(body)
-      ? stringValue(body.websiteUrl, 2_048)
-      : undefined;
+    const quotaResponse = await enforceApiQuota(
+      auth.supabase,
+      "business_auto_discover",
+    );
+    if (quotaResponse) return quotaResponse;
+
+    const websiteUrl = stringValue(parsedRequest.data.websiteUrl, 2_048);
 
     if (!websiteUrl) {
       return NextResponse.json(
@@ -85,8 +94,8 @@ export async function POST(req: Request) {
     const apiKey = process.env.GROQ_API_KEY;
     if (!apiKey) {
       return NextResponse.json(
-        { error: "GROQ_API_KEY is not configured on the server." },
-        { status: 500 },
+        { error: "Business discovery is not configured yet." },
+        { status: 503 },
       );
     }
 
@@ -204,13 +213,11 @@ ${htmlText}
       websiteUrl: formattedUrl,
     });
   } catch (error: unknown) {
+    console.error("Business discovery failed.", {
+      name: error instanceof Error ? error.name : "unknown",
+    });
     return NextResponse.json(
-      {
-        error: errorMessage(
-          error,
-          "Failed to auto-discover business profile.",
-        ),
-      },
+      { error: "Failed to auto-discover business profile." },
       { status: 500 },
     );
   }

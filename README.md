@@ -18,6 +18,14 @@ Open [http://localhost:3000](http://localhost:3000) in a browser.
 sends the current Supabase access token to the API; no service-role key or JWT
 signing secret belongs in this app.
 
+Set `NEXT_PUBLIC_SITE_URL` to the canonical HTTPS origin in production. This
+origin is used for authentication callbacks and mutation-origin checks. Vercel
+deployments fall back to `VERCEL_PROJECT_PRODUCTION_URL`.
+
+Apply the checked-in Supabase migrations before deploying application code.
+They enforce ownership with row-level security, remove anonymous table grants,
+validate stored field limits, and provide durable per-user API quotas.
+
 Set `GROQ_API_KEY` in `.env.local` to enable Denver, Dopa's website agent.
 Denver's safe website knowledge is regenerated from current pages and
 components before every `bun run dev` and `bun run build`. The development
@@ -33,5 +41,7 @@ model responses; there is no browser mock path.
 bun run lint
 bunx tsc --noEmit
 bun run test:denver
+bun run test:google-ads
+bun run test:security
 bun run build
 ```

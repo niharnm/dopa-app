@@ -199,6 +199,7 @@ export async function refreshGoogleAccessToken(
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: params.toString(),
     cache: "no-store",
+    signal: AbortSignal.timeout(10_000),
   });
 
   if (!response.ok) {
@@ -259,7 +260,7 @@ export async function fetchLiveGoogleAdsData(
   const customerId = cleanCustomerId(credentials.customerId);
   const developerToken = credentials.developerToken.trim();
 
-  if (!customerId || !developerToken) {
+  if (!/^\d{10}$/.test(customerId) || !developerToken) {
     return {
       success: false,
       configured: false,
@@ -284,15 +285,15 @@ export async function fetchLiveGoogleAdsData(
         credentials.refreshToken,
       );
     } catch (error: unknown) {
+      console.error("Google OAuth token refresh failed.", {
+        name: error instanceof Error ? error.name : "unknown",
+      });
       return {
         success: false,
         configured: true,
         source: "unavailable",
         code: "oauth_required",
-        error:
-          error instanceof Error
-            ? error.message
-            : "Google OAuth token refresh failed.",
+        error: "Google Ads authorization expired. Reconnect your account.",
         campaigns: [],
       };
     }
@@ -318,6 +319,16 @@ export async function fetchLiveGoogleAdsData(
     credentials.loginCustomerId ?? "",
   );
   if (loginCustomerId) {
+    if (!/^\d{10}$/.test(loginCustomerId)) {
+      return {
+        success: false,
+        configured: false,
+        source: "unavailable",
+        code: "configuration_required",
+        error: "The Google Ads manager customer ID is invalid.",
+        campaigns: [],
+      };
+    }
     headers["login-customer-id"] = loginCustomerId;
   }
 
@@ -350,6 +361,7 @@ export async function fetchLiveGoogleAdsData(
         headers,
         body: JSON.stringify({ query }),
         cache: "no-store",
+        signal: AbortSignal.timeout(20_000),
       },
     );
     const requestId =
@@ -358,23 +370,29 @@ export async function fetchLiveGoogleAdsData(
       undefined;
 
     if (!response.ok) {
-      const body = await response.text();
-      const message =
-        errorMessage(body) ??
-        `Google Ads API request failed with status ${response.status}.`;
+      await response.arrayBuffer();
       const code: GoogleAdsErrorCode =
         response.status === 401
           ? "oauth_required"
           : response.status === 403
             ? "access_denied"
             : "google_ads_api_error";
+      console.error("Google Ads API request failed.", {
+        status: response.status,
+        requestId,
+      });
 
       return {
         success: false,
         configured: true,
         source: "unavailable",
         code,
-        error: message,
+        error:
+          code === "oauth_required"
+            ? "Google Ads authorization expired. Reconnect your account."
+            : code === "access_denied"
+              ? "Google Ads denied access to this account."
+              : "Google Ads is temporarily unavailable.",
         requestId,
         campaigns: [],
       };
@@ -398,15 +416,15 @@ export async function fetchLiveGoogleAdsData(
       campaigns: rows.map(campaignFromRow),
     };
   } catch (error: unknown) {
+    console.error("Google Ads network request failed.", {
+      name: error instanceof Error ? error.name : "unknown",
+    });
     return {
       success: false,
       configured: true,
       source: "unavailable",
       code: "network_error",
-      error:
-        error instanceof Error
-          ? `Could not reach Google Ads: ${error.message}`
-          : "Could not reach Google Ads.",
+      error: "Could not reach Google Ads.",
       campaigns: [],
     };
   }
@@ -428,7 +446,12 @@ export async function fetchKeywordMetrics(
   const developerToken = credentials.developerToken.trim();
   const accessToken = credentials.accessToken?.trim();
 
-  if (!customerId || !developerToken || !accessToken || keywords.length === 0) {
+  if (
+    !/^\d{10}$/.test(customerId) ||
+    !developerToken ||
+    !accessToken ||
+    keywords.length === 0
+  ) {
     return {};
   }
 
@@ -453,6 +476,7 @@ export async function fetchKeywordMetrics(
         geoTargetConstants: ["geoTargetConstants/2840"],
       }),
       cache: "no-store",
+      signal: AbortSignal.timeout(20_000),
     });
 
     if (!response.ok) return {};

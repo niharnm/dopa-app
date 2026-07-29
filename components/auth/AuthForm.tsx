@@ -89,10 +89,16 @@ export function AuthForm({
             type="password"
             autoComplete={isLogin ? "current-password" : "new-password"}
             required
-            minLength={6}
+            minLength={isLogin ? 1 : 12}
+            maxLength={128}
             className={inputClass}
             placeholder="••••••••"
           />
+          {!isLogin ? (
+            <p className="mt-1.5 text-[11px] text-tertiary">
+              Use at least 12 characters.
+            </p>
+          ) : null}
         </div>
         <button type="submit" className={primaryButtonClass}>
           {isLogin ? "Log in" : "Sign up"}

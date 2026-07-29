@@ -14,7 +14,10 @@ export async function getBusinessesForUser(
     .order("created_at", { ascending: true });
 
   if (error) {
-    throw new Error(error.message);
+    console.error("Failed to load businesses.", {
+      code: error.code ?? "unknown",
+    });
+    throw new Error("Businesses could not be loaded.");
   }
 
   const list = (businesses ?? []) as Business[];
@@ -30,7 +33,10 @@ export async function getBusinessesForUser(
     .maybeSingle();
 
   if (prefsError) {
-    throw new Error(prefsError.message);
+    console.error("Failed to load business preferences.", {
+      code: prefsError.code ?? "unknown",
+    });
+    throw new Error("Business preferences could not be loaded.");
   }
 
   const validIds = new Set(list.map((business) => business.id));

@@ -15,6 +15,10 @@ import {
   DENVER_ACTION_LINKS,
   buildDenverKnowledgeContext,
 } from "@/lib/denver-knowledge";
+import {
+  isSameOriginRequest,
+  NO_STORE_HEADERS,
+} from "@/utils/http-security";
 
 const GROQ_CHAT_COMPLETIONS_URL =
   "https://api.groq.com/openai/v1/chat/completions";
@@ -24,11 +28,6 @@ const MINUTE_MS = 60_000;
 const DAY_MS = 86_400_000;
 const GROQ_MAX_ATTEMPTS = 2;
 const GROQ_RETRYABLE_STATUSES = new Set([408, 498, 500, 502, 503, 504]);
-const NO_STORE_HEADERS = {
-  "Cache-Control": "private, no-store, max-age=0",
-  Vary: "Origin",
-};
-
 const minuteNetworkLimits = new Map<string, DenverRateLimitEntry>();
 const dailyNetworkLimits = new Map<string, DenverRateLimitEntry>();
 const minuteClientLimits = new Map<string, DenverRateLimitEntry>();
@@ -56,31 +55,6 @@ function json(body: Record<string, unknown>, status = 200, headers?: HeadersInit
       ...headers,
     },
   });
-}
-
-function expectedOrigin(request: Request) {
-  const forwardedHost = request.headers
-    .get("x-forwarded-host")
-    ?.split(",")[0]
-    ?.trim();
-  const forwardedProtocol = request.headers
-    .get("x-forwarded-proto")
-    ?.split(",")[0]
-    ?.trim();
-  if (forwardedHost) {
-    return `${forwardedProtocol === "http" ? "http" : "https"}://${forwardedHost}`;
-  }
-  return new URL(request.url).origin;
-}
-
-function isSameOrigin(request: Request) {
-  const origin = request.headers.get("origin");
-  if (!origin) return false;
-  try {
-    return new URL(origin).origin === expectedOrigin(request);
-  } catch {
-    return false;
-  }
 }
 
 function hashIdentity(value: string) {
@@ -312,7 +286,7 @@ async function readRequestBody(request: Request) {
 }
 
 export async function POST(request: Request) {
-  if (!isSameOrigin(request)) {
+  if (!isSameOriginRequest(request)) {
     return json({ error: "This request origin is not allowed." }, 403);
   }
 

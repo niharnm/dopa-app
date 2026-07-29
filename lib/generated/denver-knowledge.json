@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "sourceHash": "da1f56e8a72c1f17",
+  "sourceHash": "2f76f58d9b2ba94d",
   "routes": [
     "/",
     "/dashboard",
@@ -225,6 +225,7 @@
         "Email address",
         "you@company.com",
         "Password",
+        "Use at least 12 characters.",
         "Don't have an account?",
         "Sign up",
         "Already have an account?",

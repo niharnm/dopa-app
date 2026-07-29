@@ -54,12 +54,22 @@ function decodeHemisphere(
   ) {
     throw new Error("The cortical model contains inconsistent geometry.");
   }
+  const positions = new Float32Array(positionBytes.buffer);
+  const indices = new Uint32Array(indexBytes.buffer);
+  if (
+    positions.some(
+      (value) => !Number.isFinite(value) || Math.abs(value) > 1_000_000,
+    ) ||
+    indices.some((value) => value >= item.vertex_count)
+  ) {
+    throw new Error("The cortical model contains unsafe geometry.");
+  }
 
   return {
     hemisphere: item.hemisphere,
     vertexCount: item.vertex_count,
-    positions: new Float32Array(positionBytes.buffer),
-    indices: new Uint32Array(indexBytes.buffer),
+    positions,
+    indices,
     responses: responseBytes,
   };
 }

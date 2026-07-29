@@ -1,10 +1,33 @@
 import { isJsonObject, stringValue } from "@/lib/validation";
 
 const DEFAULT_API_BASE_URL = "http://localhost:8000";
+const MAX_SCORE_RESPONSE_BYTES = 1024 * 1024;
+const MAX_BRAIN_MODEL_BYTES = 32 * 1024 * 1024;
+const MAX_BRAIN_FRAMES = 600;
+const MAX_BRAIN_VERTICES_PER_HEMISPHERE = 200_000;
 
-export const DOPA_API_BASE_URL = (
-  process.env.NEXT_PUBLIC_DOPA_API_URL || DEFAULT_API_BASE_URL
-).replace(/\/+$/, "");
+export function normalizeDopaApiBaseUrl(value: string): string {
+  const url = new URL(value);
+  const isLoopback =
+    url.hostname === "localhost" ||
+    url.hostname.endsWith(".localhost") ||
+    url.hostname === "[::1]" ||
+    /^127(?:\.\d{1,3}){3}$/.test(url.hostname);
+  if (
+    url.username ||
+    url.password ||
+    (url.protocol !== "https:" && !(url.protocol === "http:" && isLoopback))
+  ) {
+    throw new Error(
+      "Dopa scoring endpoints must use HTTPS unless they are on localhost.",
+    );
+  }
+  return url.href.replace(/\/+$/, "");
+}
+
+export const DOPA_API_BASE_URL = normalizeDopaApiBaseUrl(
+  process.env.NEXT_PUBLIC_DOPA_API_URL || DEFAULT_API_BASE_URL,
+);
 
 export type BrainRegionResponse = {
   region_id: string;
@@ -77,7 +100,10 @@ function apiUrl(path: string): string {
 function responseDetail(body: string, fallback: string): string {
   try {
     const parsed = JSON.parse(body) as { detail?: unknown };
-    return typeof parsed.detail === "string" ? parsed.detail : fallback;
+    return typeof parsed.detail === "string" &&
+      parsed.detail.length <= 500
+      ? parsed.detail
+      : fallback;
   } catch {
     return fallback;
   }
@@ -160,6 +186,21 @@ function parseScoreResponse(value: unknown): ScoreResponse {
   ) {
     throw new DopaApiError("The scoring API returned an invalid response.");
   }
+  if (
+    scorePercent < 0 ||
+    scorePercent > 100 ||
+    rawMeanIctr < 0 ||
+    processingSeconds < 0 ||
+    modelLoadSeconds < 0 ||
+    peakVramMib < 0 ||
+    durationSeconds < 0 ||
+    durationSeconds > 600 ||
+    lagSeconds < 0 ||
+    lagSeconds > 120 ||
+    topRegions.length > 100
+  ) {
+    throw new DopaApiError("The scoring API returned values outside safe limits.");
+  }
 
   return {
     metric: "predicted_average_ctr",
@@ -191,7 +232,10 @@ function parseBrainModel(value: unknown): BrainModelPayload {
     !Number.isInteger(value.frame_count) ||
     typeof value.frame_count !== "number" ||
     value.frame_count < 1 ||
+    value.frame_count > MAX_BRAIN_FRAMES ||
     frameInterval === null ||
+    frameInterval <= 0 ||
+    frameInterval > 60 ||
     !Array.isArray(value.hemispheres)
   ) {
     throw new DopaApiError(
@@ -207,14 +251,30 @@ function parseBrainModel(value: unknown): BrainModelPayload {
           hemisphere.hemisphere !== "right") ||
         typeof hemisphere.vertex_count !== "number" ||
         !Number.isInteger(hemisphere.vertex_count) ||
-        hemisphere.vertex_count < 1
+        hemisphere.vertex_count < 1 ||
+        hemisphere.vertex_count > MAX_BRAIN_VERTICES_PER_HEMISPHERE
       ) {
         return [];
       }
-      const positions = stringValue(hemisphere.positions_f32, 100_000_000);
-      const indices = stringValue(hemisphere.indices_u32, 100_000_000);
-      const responses = stringValue(hemisphere.responses_u8, 100_000_000);
+      const positions = stringValue(
+        hemisphere.positions_f32,
+        MAX_BRAIN_MODEL_BYTES,
+      );
+      const indices = stringValue(
+        hemisphere.indices_u32,
+        MAX_BRAIN_MODEL_BYTES,
+      );
+      const responses = stringValue(
+        hemisphere.responses_u8,
+        MAX_BRAIN_MODEL_BYTES,
+      );
       if (!positions || !indices || !responses) return [];
+      if (
+        positions.length + indices.length + responses.length >
+        MAX_BRAIN_MODEL_BYTES
+      ) {
+        return [];
+      }
       return [
         {
           hemisphere: hemisphere.hemisphere,
@@ -262,6 +322,7 @@ export function scoreAd({
     }
     const request = new XMLHttpRequest();
     const abortRequest = () => request.abort();
+    let responseTooLarge = false;
 
     request.open("POST", apiUrl("/v1/score"));
     request.setRequestHeader("Authorization", `Bearer ${accessToken}`);
@@ -272,9 +333,23 @@ export function scoreAd({
       }
     };
     request.upload.onload = () => onUploadProgress(100);
+    request.onprogress = (event) => {
+      if (event.loaded > MAX_SCORE_RESPONSE_BYTES) {
+        responseTooLarge = true;
+        request.abort();
+      }
+    };
     request.onload = () => {
       signal.removeEventListener("abort", abortRequest);
       if (request.status >= 200 && request.status < 300) {
+        if (request.responseText.length > MAX_SCORE_RESPONSE_BYTES) {
+          reject(
+            new DopaApiError(
+              "The scoring API response exceeded the safe size limit.",
+            ),
+          );
+          return;
+        }
         try {
           resolve(parseScoreResponse(JSON.parse(request.responseText)));
         } catch (error: unknown) {
@@ -316,7 +391,13 @@ export function scoreAd({
     };
     request.onabort = () => {
       signal.removeEventListener("abort", abortRequest);
-      reject(new DOMException("Analysis cancelled.", "AbortError"));
+      reject(
+        responseTooLarge
+          ? new DopaApiError(
+              "The scoring API response exceeded the safe size limit.",
+            )
+          : new DOMException("Analysis cancelled.", "AbortError"),
+      );
     };
 
     signal.addEventListener("abort", abortRequest, { once: true });
@@ -344,11 +425,17 @@ export function fetchBrainModel({
     }
     const request = new XMLHttpRequest();
     const abortRequest = () => request.abort();
+    let responseTooLarge = false;
 
     request.open("GET", apiUrl(path));
     request.setRequestHeader("Authorization", `Bearer ${accessToken}`);
     request.timeout = 2 * 60 * 1000;
     request.onprogress = (event) => {
+      if (event.loaded > MAX_BRAIN_MODEL_BYTES) {
+        responseTooLarge = true;
+        request.abort();
+        return;
+      }
       onDownloadProgress(
         event.lengthComputable && event.total > 0
           ? Math.min(100, (event.loaded / event.total) * 100)
@@ -358,6 +445,14 @@ export function fetchBrainModel({
     request.onload = () => {
       signal.removeEventListener("abort", abortRequest);
       if (request.status >= 200 && request.status < 300) {
+        if (request.responseText.length > MAX_BRAIN_MODEL_BYTES) {
+          reject(
+            new DopaApiError(
+              "The cortical model response exceeded the safe size limit.",
+            ),
+          );
+          return;
+        }
         try {
           resolve(parseBrainModel(JSON.parse(request.responseText)));
         } catch (error: unknown) {
@@ -395,7 +490,13 @@ export function fetchBrainModel({
     };
     request.onabort = () => {
       signal.removeEventListener("abort", abortRequest);
-      reject(new DOMException("Analysis cancelled.", "AbortError"));
+      reject(
+        responseTooLarge
+          ? new DopaApiError(
+              "The cortical model response exceeded the safe size limit.",
+            )
+          : new DOMException("Analysis cancelled.", "AbortError"),
+      );
     };
 
     signal.addEventListener("abort", abortRequest, { once: true });
