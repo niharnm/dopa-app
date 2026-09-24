@@ -1,10 +1,12 @@
 import Link from "next/link";
 import { AuthLinks } from "@/components/auth/AuthLinks";
 import { DopaMark } from "./icons";
+import { DOPA_REPO_URL } from "./links";
 
 const nav = [
   { label: "Features", href: "#pipeline" },
   { label: "Demo", href: "/demo" },
+  { label: "GitHub", href: DOPA_REPO_URL, external: true },
   { label: "Privacy", href: "/privacy" },
 ];
 
@@ -30,6 +32,9 @@ export async function Header() {
               <a
                 key={item.label}
                 href={item.href}
+                {...(item.external
+                  ? { target: "_blank", rel: "noopener noreferrer" }
+                  : {})}
                 className="inline-flex items-center px-2.5 py-1.5 text-[13px] text-[#b4bcd0] transition-colors hover:text-white"
               >
                 {item.label}

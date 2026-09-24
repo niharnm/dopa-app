@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { DopaMark } from "./icons";
+import { DopaMark, GitHubMark } from "./icons";
+import { DOPA_REPO_URL } from "./links";
 
 const useCases = [
   {
@@ -50,22 +51,30 @@ export function FinalCta() {
       <div className="relative mx-auto max-w-300 overflow-hidden px-5 py-28 text-center md:px-8 md:py-36">
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(94,106,210,0.16),transparent_60%)]" />
         <h2 className="relative text-[36px] font-medium tracking-[-0.03em] md:text-[48px]">
-          Built for the future.
+          Dopa is discontinued.
           <br />
-          Available today.
+          The code is open source.
         </h2>
+        <p className="relative mx-auto mt-5 max-w-120 text-[15px] leading-6 text-secondary">
+          We are no longer actively developing Dopa. The full source is
+          available on GitHub for anyone who wants to read it, run it, or
+          build on it.
+        </p>
         <div className="relative mt-8 flex flex-wrap items-center justify-center gap-3">
+          <a
+            href={DOPA_REPO_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex h-10 items-center gap-2 rounded-lg bg-white px-4 text-[14px] font-medium text-[#08090a] transition-[transform,opacity] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] hover:opacity-90 active:scale-[0.97]"
+          >
+            <GitHubMark className="h-4 w-4" />
+            View on GitHub
+          </a>
           <Link
             href="/demo"
-            className="inline-flex h-10 items-center rounded-lg bg-white px-4 text-[14px] font-medium text-[#08090a] transition-[transform,opacity] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] hover:opacity-90 active:scale-[0.97]"
-          >
-            Try brand import demo
-          </Link>
-          <Link
-            href="/?modal=signup"
             className="inline-flex h-10 items-center rounded-lg border border-white/10 px-4 text-[14px] text-foreground transition-[transform,background-color] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] hover:bg-white/4 active:scale-[0.97]"
           >
-            Sign up
+            Try brand import demo
           </Link>
         </div>
       </div>
@@ -86,6 +95,15 @@ export function Footer() {
           <Link href="/demo" className="font-medium text-white transition-colors hover:text-white/80">
             Demo
           </Link>
+          <a
+            href={DOPA_REPO_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 transition-colors hover:text-white"
+          >
+            <GitHubMark className="h-3.5 w-3.5" />
+            GitHub
+          </a>
           <Link href="/fc-proof" className="transition-colors hover:text-white">
             Judges / Alibaba Cloud proof
           </Link>
