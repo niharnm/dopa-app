@@ -2,6 +2,7 @@
   "name": "dopa-app",
   "version": "0.1.0",
   "private": true,
+  "license": "Apache-2.0",
   "scripts": {
     "knowledge:denver": "bun scripts/generate-denver-knowledge.ts",
     "dev": "bun run knowledge:denver && bun scripts/dev.ts",
