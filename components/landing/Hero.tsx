@@ -1,6 +1,7 @@
 import Link from "next/link";
-import { ArrowRight } from "./icons";
+import { ArrowRight, GitHubMark } from "./icons";
 import { HeroIssueDemo } from "./HeroIssueDemo";
+import { DOPA_REPO_URL } from "./links";
 
 export function Hero() {
   return (
@@ -9,6 +10,22 @@ export function Hero() {
 
       <div className="relative mx-auto max-w-300 px-5 md:px-8">
         <div className="max-w-205 pb-10 pt-16 md:pb-14 md:pt-22">
+          <a
+            href={DOPA_REPO_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="animate-fade-up mb-7 inline-flex max-w-full flex-wrap items-center gap-x-2 gap-y-1 rounded-2xl border border-white/10 bg-white/4 px-3.5 py-1.5 text-[13px] leading-5 text-[#b4bcd0] transition-colors hover:bg-white/8 hover:text-white"
+          >
+            <span>
+              <span className="mr-2 inline-block h-1.5 w-1.5 rounded-full bg-[#f2994a] align-middle" aria-hidden />
+              Dopa has been discontinued. The code is now open source.
+            </span>
+            <span className="inline-flex items-center gap-1.5 font-medium text-white">
+              <GitHubMark className="h-3.5 w-3.5" />
+              View on GitHub
+              <ArrowRight className="h-3 w-3 opacity-70" />
+            </span>
+          </a>
           <h1 className="animate-fade-up text-[40px] font-semibold leading-[1.05] tracking-[-0.04em] text-white sm:text-[52px] md:text-[64px]">
             Pre-spend creative intelligence
             <br />
