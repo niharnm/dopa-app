@@ -1,4 +1,3 @@
-import type { KeywordResult } from "@/app/api/keywords/generate/route";
 import type { CompetitorItem } from "@/app/dashboard/competitor-actions";
 import type { Business } from "@/lib/business-types";
 import type {
@@ -7,6 +6,7 @@ import type {
   ResearchRunDto,
 } from "@/lib/competitor-intelligence/types";
 import type { ScoreResponse } from "@/lib/dopa-api";
+import type { KeywordRecommendation } from "@/lib/keyword-intelligence/types";
 import type { Product } from "@/lib/product-types";
 import { buildTimelineCurve } from "@/lib/timeline-curve";
 import type { LiveCampaignData } from "@/utils/google-ads-client";
@@ -184,6 +184,7 @@ export const demoCompetitorRun: ResearchRunDto = {
   queued_at: "2026-07-28T10:00:00.000Z",
   started_at: "2026-07-28T10:00:02.000Z",
   completed_at: "2026-07-28T10:01:12.000Z",
+  queue_position: null,
   candidates: demoCandidates,
 };
 
@@ -235,58 +236,66 @@ export const demoCompetitorSettings: MonitorSettingsDto = {
   next_run_at: "2026-07-30T16:00:00.000Z",
 };
 
-export const demoKeywords: KeywordResult[] = [
+export const demoKeywords: KeywordRecommendation[] = [
   {
     keyword: "heavyweight tee men",
+    current_keyword: "heavyweight tee",
+    status: "improve",
     category: "commercial",
-    intentDescription: "High-intent shoppers comparing premium basics.",
-    estimatedSearchVolume: "14.8k",
-    suggestedAdHeadline: "Heavyweight Tee, Built to Last",
-    cpcFormatted: "$1.40",
-    sources: ["Google Ads"],
-    volumeSource: "Google Ads",
+    intent: "High-intent shoppers comparing premium basics.",
+    feedback: "Adding the audience qualifier matches how buyers search.",
+    suggested_ad_headline: "Heavyweight Tee, Built to Last",
+    confidence: 68,
+    rank: 1,
+    evidence: [],
   },
   {
     keyword: "boxy fit t-shirt",
+    current_keyword: "boxy fit",
+    status: "improve",
     category: "commercial",
-    intentDescription: "Style-led buyers seeking modern silhouette.",
-    estimatedSearchVolume: "9.2k",
-    suggestedAdHeadline: "Boxy Fit That Actually Fits",
-    cpcFormatted: "$1.15",
-    sources: ["Google Ads"],
-    volumeSource: "Google Ads",
+    intent: "Style-led buyers seeking modern silhouette.",
+    feedback: "Naming the product type filters out non-apparel searches.",
+    suggested_ad_headline: "Boxy Fit That Actually Fits",
+    confidence: 64,
+    rank: 2,
+    evidence: [],
   },
   {
     keyword: "organic cotton basics",
+    current_keyword: "organic cotton basics",
+    status: "keep",
     category: "long_tail",
-    intentDescription: "Values-led shoppers filtering for materials.",
-    estimatedSearchVolume: "6.4k",
-    suggestedAdHeadline: "Organic Cotton, Everyday Soft",
-    cpcFormatted: "$0.95",
-    sources: ["AI estimate"],
-    volumeSource: "AI estimate",
+    intent: "Values-led shoppers filtering for materials.",
+    feedback: "Already specific to the material buyers filter for.",
+    suggested_ad_headline: "Organic Cotton, Everyday Soft",
+    confidence: 62,
+    rank: 3,
+    evidence: [],
   },
   {
     keyword: "premium everyday tee",
+    current_keyword: null,
+    status: "add",
     category: "commercial",
-    intentDescription: "Quality-over-quantity apparel buyers.",
-    estimatedSearchVolume: "4.1k",
-    suggestedAdHeadline: "Premium Tee Without the Markup",
-    cpcFormatted: "$1.70",
-    sources: ["Google Ads"],
-    volumeSource: "Google Ads",
+    intent: "Quality-over-quantity apparel buyers.",
+    feedback: "Mirrors the premium everyday positioning in the profile.",
+    suggested_ad_headline: "Premium Tee Without the Markup",
+    confidence: 58,
+    rank: 4,
+    evidence: [],
   },
   {
     keyword: "rival labs alternative",
+    current_keyword: null,
+    status: "add",
     category: "competitor",
-    intentDescription: "Shoppers comparing against Rival Labs.",
-    estimatedSearchVolume: "2.1k",
-    suggestedAdHeadline: "Skip the Soft CTA. Feel the Fabric.",
-    cpcFormatted: "$1.55",
-    trendSignal: "Rising",
-    isSurging: true,
-    sources: ["AI estimate"],
-    volumeSource: "AI estimate",
+    intent: "Shoppers comparing against Rival Labs.",
+    feedback: "Captures rising comparison searches against Rival Labs.",
+    suggested_ad_headline: "Skip the Soft CTA. Feel the Fabric.",
+    confidence: 55,
+    rank: 5,
+    evidence: [],
   },
 ];
 

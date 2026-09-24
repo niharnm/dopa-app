@@ -177,24 +177,43 @@ function parseGoogleAdsResponse(value: unknown): GoogleAdsApiResponse {
 export function GoogleAdsTab({
   dopaEmail,
   oauthResult,
+  demoMode = false,
+  initialCampaigns,
+  initialAccount,
 }: {
   dopaEmail: string;
   oauthResult?: string;
+  demoMode?: boolean;
+  initialCampaigns?: LiveCampaignData[];
+  initialAccount?: GoogleAdsApiResponse["accountDetails"];
 }) {
-  const [connectionState, setConnectionState] =
-    useState<ConnectionState>("loading");
+  const [connectionState, setConnectionState] = useState<ConnectionState>(
+    demoMode ? "connected" : "loading",
+  );
   const [isConnectingOAuth, setIsConnectingOAuth] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
   const [apiErrorCode, setApiErrorCode] = useState<GoogleAdsErrorCode>();
-  const [account, setAccount] =
-    useState<GoogleAdsApiResponse["accountDetails"]>();
-  const [campaigns, setCampaigns] = useState<LiveCampaignData[]>([]);
+  const [account, setAccount] = useState<
+    GoogleAdsApiResponse["accountDetails"]
+  >(() => initialAccount);
+  const [campaigns, setCampaigns] = useState<LiveCampaignData[]>(
+    () => initialCampaigns ?? [],
+  );
   const [filter, setFilter] = useState<CampaignFilter>("All");
   const [notice, setNotice] = useState<string | null>(() =>
     oauthNotice(oauthResult),
   );
 
   const fetchGoogleAds = useCallback(async (signal?: AbortSignal) => {
+    // Demo mode renders fixture data and never calls the Google Ads API.
+    if (demoMode) {
+      setCampaigns(initialCampaigns ?? []);
+      setAccount(initialAccount);
+      setApiError(null);
+      setApiErrorCode(undefined);
+      setConnectionState("connected");
+      return;
+    }
     try {
       const response = await fetch("/api/google-ads", {
         cache: "no-store",
@@ -228,7 +247,7 @@ export function GoogleAdsTab({
       );
       setConnectionState("error");
     }
-  }, []);
+  }, [demoMode, initialAccount, initialCampaigns]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -277,6 +296,10 @@ export function GoogleAdsTab({
   };
 
   const handleDisconnect = async () => {
+    if (demoMode) {
+      setNotice("Demo mode: sign up to connect your own Google Ads account.");
+      return;
+    }
     setNotice(null);
 
     try {

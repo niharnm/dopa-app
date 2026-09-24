@@ -7,6 +7,7 @@ declare module "bun:test" {
     toEqual(expected: unknown): void;
     toHaveLength(expected: number): void;
     toMatchObject(expected: object): void;
+    toThrow(expected?: unknown): void;
   };
 
   export function afterEach(callback: TestFunction): void;

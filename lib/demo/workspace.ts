@@ -14,7 +14,7 @@ import {
   demoProducts,
 } from "@/lib/demo/fixtures";
 import { alibabaDemoProfile } from "@/lib/demo/alibaba-profile";
-import type { KeywordResult } from "@/app/api/keywords/generate/route";
+import type { KeywordRecommendation } from "@/lib/keyword-intelligence/types";
 import type {
   MonitorSettingsDto,
   ResearchCandidateDto,
@@ -42,7 +42,7 @@ export type DemoWorkspace = {
   competitors: CompetitorItem[];
   competitorRun: ResearchRunDto;
   competitorSettings: MonitorSettingsDto;
-  keywords: KeywordResult[];
+  keywords: KeywordRecommendation[];
   campaigns: LiveCampaignData[];
   googleAdsAccount: typeof demoGoogleAdsAccount;
   brainScore: ScoreResponse;
@@ -285,97 +285,111 @@ function buildProducts(
   return buildGenericBrandProducts(form);
 }
 
-function alibabaKeywords(): KeywordResult[] {
+function alibabaKeywords(): KeywordRecommendation[] {
   return [
     {
       keyword: "B2B wholesale marketplace",
+      current_keyword: null,
+      status: "add",
       category: "commercial",
-      intentDescription: "Buyers comparing global wholesale platforms.",
-      estimatedSearchVolume: "22.4k",
-      suggestedAdHeadline: "Source Verified Manufacturers",
-      cpcFormatted: "$2.10",
-      sources: ["Google Ads"],
-      volumeSource: "Google Ads",
+      intent: "Buyers comparing global wholesale platforms.",
+      feedback: "Broad category phrase with the most buyer demand here.",
+      suggested_ad_headline: "Source Verified Manufacturers",
+      confidence: 68,
+      rank: 1,
+      evidence: [],
     },
     {
       keyword: "AI sourcing agent",
+      current_keyword: null,
+      status: "add",
       category: "commercial",
-      intentDescription: "Importers looking for AI-assisted supplier research.",
-      estimatedSearchVolume: "8.6k",
-      suggestedAdHeadline: "Accio AI Sourcing Agent",
-      cpcFormatted: "$1.85",
-      sources: ["Google Ads"],
-      volumeSource: "Google Ads",
+      intent: "Importers looking for AI-assisted supplier research.",
+      feedback: "Positions AI sourcing against manual supplier research.",
+      suggested_ad_headline: "Accio AI Sourcing Agent",
+      confidence: 65,
+      rank: 2,
+      evidence: [],
     },
     {
       keyword: "Trade Assurance Alibaba",
+      current_keyword: null,
+      status: "add",
       category: "commercial",
-      intentDescription: "Buyers seeking order protection on wholesale deals.",
-      estimatedSearchVolume: "12.1k",
-      suggestedAdHeadline: "Orders Protected End to End",
-      cpcFormatted: "$1.60",
-      sources: ["Google Ads"],
-      volumeSource: "Google Ads",
+      intent: "Buyers seeking order protection on wholesale deals.",
+      feedback: "Branded protection term that reassures new buyers.",
+      suggested_ad_headline: "Orders Protected End to End",
+      confidence: 62,
+      rank: 3,
+      evidence: [],
     },
     {
       keyword: "verified manufacturers China",
+      current_keyword: null,
+      status: "add",
       category: "long_tail",
-      intentDescription: "Wholesale buyers filtering for audited factories.",
-      estimatedSearchVolume: "9.8k",
-      suggestedAdHeadline: "Verified Suppliers, Ready to Ship",
-      cpcFormatted: "$1.45",
-      sources: ["AI estimate"],
-      volumeSource: "AI estimate",
+      intent: "Wholesale buyers filtering for audited factories.",
+      feedback: "Long-tail phrase from buyers vetting factories.",
+      suggested_ad_headline: "Verified Suppliers, Ready to Ship",
+      confidence: 58,
+      rank: 4,
+      evidence: [],
     },
     {
       keyword: "Amazon Business alternative",
+      current_keyword: null,
+      status: "add",
       category: "competitor",
-      intentDescription: "Buyers comparing wholesale marketplaces.",
-      estimatedSearchVolume: "3.4k",
-      suggestedAdHeadline: "Factory-Direct Beyond Office Supplies",
-      cpcFormatted: "$2.40",
-      trendSignal: "Rising",
-      isSurging: true,
-      sources: ["AI estimate"],
-      volumeSource: "AI estimate",
+      intent: "Buyers comparing wholesale marketplaces.",
+      feedback: "Captures rising comparison searches against Amazon Business.",
+      suggested_ad_headline: "Factory-Direct Beyond Office Supplies",
+      confidence: 55,
+      rank: 5,
+      evidence: [],
     },
   ];
 }
 
-function brandMatchedKeywords(business: Business): KeywordResult[] {
+function brandMatchedKeywords(business: Business): KeywordRecommendation[] {
   const name = business.name;
   const productHint =
     business.value_proposition?.split(/[.—]/)[0]?.trim() || name;
   return [
     {
       keyword: `${name} pricing`.toLowerCase(),
+      current_keyword: null,
+      status: "add",
       category: "commercial",
-      intentDescription: `High-intent evaluators researching ${name}.`,
-      estimatedSearchVolume: "4.2k",
-      suggestedAdHeadline: `${name} — Get Started`,
-      cpcFormatted: "$1.50",
-      sources: ["AI estimate"],
-      volumeSource: "AI estimate",
+      intent: `High-intent evaluators researching ${name}.`,
+      feedback: "Branded pricing searches come from buyers near a decision.",
+      suggested_ad_headline: `${name} · Get Started`,
+      confidence: 60,
+      rank: 1,
+      evidence: [],
     },
     {
       keyword: `${productHint}`.toLowerCase().slice(0, 60),
+      current_keyword: null,
+      status: "add",
       category: "commercial",
-      intentDescription: "Buyers matching the brand value proposition.",
-      estimatedSearchVolume: "6.1k",
-      suggestedAdHeadline: productHint.slice(0, 40),
-      cpcFormatted: "$1.25",
-      sources: ["AI estimate"],
-      volumeSource: "AI estimate",
+      intent: "Buyers matching the brand value proposition.",
+      feedback: "Turns the brand value proposition into a search phrase.",
+      suggested_ad_headline: productHint.slice(0, 40),
+      confidence: 56,
+      rank: 2,
+      evidence: [],
     },
     {
       keyword: `${business.industry ?? "B2B"} software`.toLowerCase(),
+      current_keyword: null,
+      status: "add",
       category: "long_tail",
-      intentDescription: "Category browsers in the brand's industry.",
-      estimatedSearchVolume: "5.5k",
-      suggestedAdHeadline: `Built for ${business.industry ?? "your market"}`,
-      cpcFormatted: "$1.10",
-      sources: ["AI estimate"],
-      volumeSource: "AI estimate",
+      intent: "Category browsers in the brand's industry.",
+      feedback: "Category phrase for buyers browsing this industry.",
+      suggested_ad_headline: `Built for ${business.industry ?? "your market"}`,
+      confidence: 52,
+      rank: 3,
+      evidence: [],
     },
   ];
 }
