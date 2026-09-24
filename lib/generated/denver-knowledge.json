@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "sourceHash": "59b00bc88488263f",
+  "sourceHash": "689bb219a235efef",
   "routes": [
     "/",
     "/dashboard",
@@ -851,13 +851,15 @@
         "Compare predicted vs live CTR and review auto-pause alerts without leaving the same workspace.",
         "Built for evidence-led creative review",
         "Predictions are estimates for review, not guarantees of live campaign performance.",
-        "Built for the future.",
-        "Available today.",
+        "Dopa is discontinued.",
+        "The code is open source.",
+        "We are no longer actively developing Dopa. The full source is available on GitHub for anyone who wants to read it, run it, or build on it.",
+        "View on GitHub",
         "Try brand import demo",
-        "Sign up",
         "Dopa",
         "Dopa, Inc.",
         "Demo",
+        "GitHub",
         "Judges / Alibaba Cloud proof",
         "Privacy",
         "Terms"
@@ -878,6 +880,7 @@
       "text": [
         "Features",
         "Demo",
+        "GitHub",
         "Privacy",
         "Dopa",
         "Primary"
@@ -888,6 +891,8 @@
       "area": "Hero",
       "source": "components/landing/Hero.tsx",
       "text": [
+        "Dopa has been discontinued. The code is now open source.",
+        "View on GitHub",
         "Pre-spend creative intelligence",
         "for marketing teams",
         "Upload an ad, predict its average click-through rate, and inspect the cortical response modeled by TRIBE v2.",
