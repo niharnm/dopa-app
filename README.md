@@ -68,3 +68,11 @@ bun run test:google-ads
 bun run test:security
 bun run build
 ```
+
+## License
+
+Dopa is discontinued and its source is available under the
+[Apache License 2.0](LICENSE). You may use, modify, and redistribute it,
+including commercially. If you redistribute this code or a modified version,
+you must keep the copyright notices, include a copy of the license, and carry
+the attribution in [NOTICE](NOTICE) so that Dopa and its authors are credited.
