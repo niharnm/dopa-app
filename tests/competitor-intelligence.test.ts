@@ -9,7 +9,7 @@ import {
   normalizeResearchCandidates,
   normalizeSignal,
 } from "@/lib/competitor-intelligence/validation";
-import { nextDailyRun } from "@/lib/competitor-intelligence/schedule";
+import { nextDailyRun, retentionDue } from "@/lib/competitor-intelligence/schedule";
 import {
   queueAutoStartCopy,
   queuePositionFromAheadCounts,
@@ -236,6 +236,18 @@ describe("daily scheduling", () => {
         afterSpringChange,
       ).toISOString(),
     ).toBe("2026-03-08T15:00:00.000Z");
+  });
+});
+
+describe("retention scheduling", () => {
+  test("runs on the first tick at or after 08:00 UTC, once per day", () => {
+    expect(retentionDue(new Date("2026-05-01T07:59:00.000Z"), null)).toBe(false);
+    expect(retentionDue(new Date("2026-05-01T08:00:00.000Z"), null)).toBe(true);
+    // A missed 08:00 tick still runs on a later tick the same day.
+    expect(retentionDue(new Date("2026-05-01T08:07:00.000Z"), null)).toBe(true);
+    expect(retentionDue(new Date("2026-05-01T23:59:00.000Z"), "2026-04-30")).toBe(true);
+    expect(retentionDue(new Date("2026-05-01T08:01:00.000Z"), "2026-05-01")).toBe(false);
+    expect(retentionDue(new Date("2026-05-02T08:00:00.000Z"), "2026-05-01")).toBe(true);
   });
 });
 

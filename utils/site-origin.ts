@@ -36,3 +36,28 @@ export function siteOriginFromRequest(requestUrl: string): string {
 
   return normalizedOrigin(requestUrl) ?? "http://localhost:3000";
 }
+
+/**
+ * Origin an auth callback should return to. Vercel preview deployments return to
+ * their own host so the auth cookie is set there, but only when the request URL
+ * and the forwarded host agree. Production keeps the configured canonical URL.
+ */
+export function authCallbackOrigin(request: Request): string {
+  if (process.env.VERCEL_ENV === "preview") {
+    const requestOrigin = normalizedOrigin(request.url);
+    const forwardedHost = (
+      request.headers.get("x-forwarded-host") ??
+      request.headers.get("host") ??
+      ""
+    )
+      .split(",")[0]
+      ?.trim();
+    if (
+      requestOrigin &&
+      (!forwardedHost || new URL(requestOrigin).host === forwardedHost)
+    ) {
+      return requestOrigin;
+    }
+  }
+  return siteOriginFromRequest(request.url);
+}

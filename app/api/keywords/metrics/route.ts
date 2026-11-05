@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import {
   fetchKeywordMetrics,
+  resolveGoogleAdsCustomers,
   type GoogleAdsCredentials,
 } from "@/utils/google-ads-client";
 import { getApiAuth } from "@/utils/api-auth";
@@ -54,19 +55,33 @@ export async function POST(request: Request) {
     auth.cookieStore,
     auth.user.id,
   );
-  const credentials: GoogleAdsCredentials = {
-    customerId: process.env.GOOGLE_ADS_CUSTOMER_ID ?? "",
-    developerToken: process.env.GOOGLE_ADS_DEVELOPER_TOKEN ?? "",
-    loginCustomerId: process.env.GOOGLE_ADS_LOGIN_CUSTOMER_ID,
-    accessToken: googleAdsSession.accessToken,
-  };
-  const metrics = await fetchKeywordMetrics(credentials, keywords);
+  const developerToken = process.env.GOOGLE_ADS_DEVELOPER_TOKEN ?? "";
+  // Keyword history works from any account the connected user can open. The
+  // operator's shared customer ID is used only through the explicit fallback.
+  const resolution =
+    googleAdsSession.accessToken && developerToken
+      ? await resolveGoogleAdsCustomers({
+          accessToken: googleAdsSession.accessToken,
+          developerToken,
+        })
+      : null;
+  const credentials: GoogleAdsCredentials | null =
+    resolution?.ok && googleAdsSession.accessToken
+      ? {
+          customerId: resolution.customerIds[0] ?? "",
+          developerToken,
+          loginCustomerId: resolution.loginCustomerId,
+          accessToken: googleAdsSession.accessToken,
+        }
+      : null;
+  const metrics = credentials
+    ? await fetchKeywordMetrics(credentials, keywords)
+    : {};
   const response = NextResponse.json({
-    connected: Boolean(
-      googleAdsSession.accessToken &&
-        credentials.customerId &&
-        credentials.developerToken,
-    ),
+    connected: Boolean(credentials?.customerId),
+    ...(resolution && !resolution.ok
+      ? { code: resolution.code, error: resolution.error }
+      : {}),
     metrics,
   });
   if (googleAdsSession.clearCookie) {

@@ -107,3 +107,18 @@ export function nextDailyRun(
 
   throw new Error("Could not calculate the next scheduled research run.");
 }
+
+export const RETENTION_RUN_HOUR_UTC = 8;
+
+/**
+ * Retention runs on the first scheduler tick at or after 08:00 UTC each day, so
+ * a missed 08:00 tick no longer skips the day. `lastRunDay` is the UTC date
+ * (YYYY-MM-DD) of the last run this process made; the cleanup is idempotent,
+ * so a fresh process running it again is harmless.
+ */
+export function retentionDue(now: Date, lastRunDay: string | null): boolean {
+  return (
+    now.getUTCHours() >= RETENTION_RUN_HOUR_UTC &&
+    now.toISOString().slice(0, 10) !== lastRunDay
+  );
+}

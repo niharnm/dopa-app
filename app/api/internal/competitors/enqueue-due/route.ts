@@ -1,4 +1,4 @@
-import { nextDailyRun } from "@/lib/competitor-intelligence/schedule";
+import { nextDailyRun, retentionDue } from "@/lib/competitor-intelligence/schedule";
 import { RESEARCH_CONTRACT_VERSION } from "@/lib/competitor-intelligence/types";
 import { isJsonObject } from "@/lib/validation";
 import { createAndEnqueueResearchRun } from "@/lib/server/competitor-research";
@@ -7,6 +7,8 @@ import { createAdminClient } from "@/utils/supabase/admin";
 
 const businessSelect =
   "id, name, website, industry, description, target_audience, value_proposition, markets, target_keywords";
+
+let lastRetentionDay: string | null = null;
 
 export async function POST(request: Request) {
   let admin;
@@ -25,8 +27,10 @@ export async function POST(request: Request) {
   }
 
   const now = new Date();
-  // The worker invokes this route every minute. Run retention once a day.
-  if (now.getUTCHours() === 8 && now.getUTCMinutes() === 0) {
+  // The worker invokes this route every minute. Run retention on the first
+  // tick at or after 08:00 UTC each day, not only on an exact 08:00 tick.
+  if (retentionDue(now, lastRetentionDay)) {
+    lastRetentionDay = now.toISOString().slice(0, 10);
     const thirtyDaysAgo = new Date(
       now.getTime() - 30 * 24 * 60 * 60 * 1_000,
     ).toISOString();

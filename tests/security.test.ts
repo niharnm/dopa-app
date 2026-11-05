@@ -12,13 +12,14 @@ import {
   isUuid,
   normalizeOptionalHttpUrl,
 } from "../lib/validation";
-import { enforceApiQuota } from "../utils/api-quota";
+import { enforceAnonymousApiQuota, enforceApiQuota } from "../utils/api-quota";
 import {
   normalizeDopaApiBaseUrl,
   parseScoreJobResponse,
 } from "../lib/dopa-api";
 import { contentSecurityPolicy, requiresSessionRefresh } from "../proxy";
 import { isCronAuthorized } from "../utils/cron-security";
+import { authCallbackOrigin } from "../utils/site-origin";
 
 function test(name: string, run: () => void) {
   run();
@@ -315,4 +316,70 @@ await asyncTest("fails authenticated API quotas closed and returns retry timing"
   assert.equal(denied?.status, 429);
   assert.equal(denied?.headers.get("Retry-After"), "42");
   assert.equal(unavailable?.status, 503);
+});
+
+await asyncTest("enforces durable anonymous quotas by hashed client key", async () => {
+  const calls: Array<{ fn: string; args: Record<string, string> }> = [];
+  const client = (row: unknown, error: { code?: string } | null = null) => ({
+    async rpc(fn: string, args: Record<string, string>) {
+      calls.push({ fn, args });
+      return { data: row, error };
+    },
+  });
+  const key = "a".repeat(64);
+
+  const allowed = await enforceAnonymousApiQuota(
+    client([{ allowed: true, retry_after_seconds: 0, remaining: 7 }]),
+    "business_demo_discover",
+    key,
+  );
+  const denied = await enforceAnonymousApiQuota(
+    client([{ allowed: false, retry_after_seconds: 1800, remaining: 0 }]),
+    "business_demo_discover",
+    key,
+  );
+  const unavailable = await enforceAnonymousApiQuota(
+    client(null, { code: "PGRST202" }),
+    "business_demo_discover",
+    key,
+  );
+
+  assert.equal(allowed, null);
+  assert.equal(denied?.status, 429);
+  assert.equal(denied?.headers.get("Retry-After"), "1800");
+  assert.equal(unavailable?.status, 503);
+  assert.deepEqual(calls[0], {
+    fn: "consume_anonymous_api_quota",
+    args: { p_bucket: "business_demo_discover", p_client_key: key },
+  });
+});
+
+test("returns preview logins to the preview host and production to the canonical URL", () => {
+  const saved = { ...process.env };
+  try {
+    process.env.NEXT_PUBLIC_SITE_URL = "https://app.example.com";
+    const request = (host: string) =>
+      new Request("https://app-git-fix-team.vercel.app/auth/callback?code=x", {
+        headers: { "x-forwarded-host": host },
+      });
+
+    process.env.VERCEL_ENV = "production";
+    assert.equal(
+      authCallbackOrigin(request("app-git-fix-team.vercel.app")),
+      "https://app.example.com",
+    );
+
+    process.env.VERCEL_ENV = "preview";
+    assert.equal(
+      authCallbackOrigin(request("app-git-fix-team.vercel.app")),
+      "https://app-git-fix-team.vercel.app",
+    );
+    // A forwarded host that disagrees with the request URL is not trusted.
+    assert.equal(
+      authCallbackOrigin(request("evil.example.net")),
+      "https://app.example.com",
+    );
+  } finally {
+    process.env = saved;
+  }
 });

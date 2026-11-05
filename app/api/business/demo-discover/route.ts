@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { NextResponse } from "next/server";
 import {
   DiscoveryError,
@@ -8,28 +9,21 @@ import {
   alibabaDemoProfile,
 } from "@/lib/demo/alibaba-profile";
 import { errorMessage, stringValue } from "@/lib/validation";
+import { enforceAnonymousApiQuota } from "@/utils/api-quota";
 import { NO_STORE_HEADERS, readJsonObjectRequest } from "@/utils/http-security";
-
-const recentByIp = new Map<string, { count: number; resetAt: number }>();
-const DEMO_LIMIT = 8;
-const DEMO_WINDOW_MS = 60 * 60 * 1000;
+import { createAdminClient } from "@/utils/supabase/admin";
 
 function clientIp(req: Request): string {
+  const platform = req.headers.get("x-vercel-forwarded-for")?.split(",")[0]?.trim();
+  if (platform) return platform;
   const forwarded = req.headers.get("x-forwarded-for");
   if (forwarded) return forwarded.split(",")[0]?.trim() || "unknown";
   return req.headers.get("x-real-ip") ?? "unknown";
 }
 
-function allowDemoRequest(ip: string): boolean {
-  const now = Date.now();
-  const entry = recentByIp.get(ip);
-  if (!entry || entry.resetAt <= now) {
-    recentByIp.set(ip, { count: 1, resetAt: now + DEMO_WINDOW_MS });
-    return true;
-  }
-  if (entry.count >= DEMO_LIMIT) return false;
-  entry.count += 1;
-  return true;
+/** Hashed so the quota table never stores a raw address. */
+function clientKey(req: Request): string {
+  return createHash("sha256").update(`demo-discover:${clientIp(req)}`).digest("hex");
 }
 
 function looksLikeAlibaba(url: string): boolean {
@@ -46,16 +40,12 @@ function looksLikeAlibaba(url: string): boolean {
 /** Public, rate-limited discovery for the account-free /demo onboarding flow. */
 export async function POST(req: Request) {
   try {
-    const ip = clientIp(req);
-    if (!allowDemoRequest(ip)) {
-      return NextResponse.json(
-        { error: "Too many demo scans. Try again later or sign up." },
-        {
-          status: 429,
-          headers: { ...NO_STORE_HEADERS, "Retry-After": "3600" },
-        },
-      );
-    }
+    const quotaResponse = await enforceAnonymousApiQuota(
+      createAdminClient(),
+      "business_demo_discover",
+      clientKey(req),
+    );
+    if (quotaResponse) return quotaResponse;
 
     const parsedRequest = await readJsonObjectRequest(req, 4_096);
     if (!parsedRequest.success) return parsedRequest.response;

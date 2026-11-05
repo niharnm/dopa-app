@@ -7,7 +7,7 @@ import {
 } from "@/utils/google-ads-token";
 import { safeNextUrl } from "@/utils/safe-next-url";
 import { NO_STORE_HEADERS } from "@/utils/http-security";
-import { siteOriginFromRequest } from "@/utils/site-origin";
+import { authCallbackOrigin } from "@/utils/site-origin";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
@@ -19,7 +19,7 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   let origin: string;
   try {
-    origin = siteOriginFromRequest(request.url);
+    origin = authCallbackOrigin(request);
   } catch {
     return NextResponse.json(
       { error: "Authentication is not configured for this deployment." },
