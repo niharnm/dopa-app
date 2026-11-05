@@ -254,6 +254,156 @@ function campaignFromRow(row: GoogleAdsStreamRow): LiveCampaignData {
   };
 }
 
+export type AccessibleCustomersResult =
+  | { ok: true; customerIds: string[] }
+  | { ok: false; code: GoogleAdsErrorCode };
+
+/**
+ * Customer accounts the connected Google user can open with their own token.
+ * Resource names come back as "customers/1234567890".
+ */
+export async function listAccessibleCustomers(
+  credentials: { developerToken: string; accessToken: string },
+): Promise<AccessibleCustomersResult> {
+  const developerToken = credentials.developerToken.trim();
+  const accessToken = credentials.accessToken.trim();
+  if (!developerToken || !accessToken) {
+    return { ok: false, code: "configuration_required" };
+  }
+
+  try {
+    const response = await fetch(
+      `${GOOGLE_ADS_API_ORIGIN}/${GOOGLE_ADS_API_VERSION}/customers:listAccessibleCustomers`,
+      {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "developer-token": developerToken,
+        },
+        cache: "no-store",
+        signal: AbortSignal.timeout(10_000),
+      },
+    );
+    if (!response.ok) {
+      await response.arrayBuffer();
+      console.error("Google Ads customer listing failed.", {
+        status: response.status,
+      });
+      return {
+        ok: false,
+        code:
+          response.status === 401
+            ? "oauth_required"
+            : response.status === 403
+              ? "access_denied"
+              : "google_ads_api_error",
+      };
+    }
+
+    const data: unknown = await response.json();
+    const names =
+      isJsonObject(data) && Array.isArray(data.resourceNames)
+        ? data.resourceNames
+        : [];
+    const customerIds = names.flatMap((name) => {
+      const match =
+        typeof name === "string" ? /^customers\/(\d{10})$/.exec(name) : null;
+      return match?.[1] ? [match[1]] : [];
+    });
+    return { ok: true, customerIds };
+  } catch (error: unknown) {
+    console.error("Google Ads customer listing request failed.", {
+      name: error instanceof Error ? error.name : "unknown",
+    });
+    return { ok: false, code: "network_error" };
+  }
+}
+
+export type CustomerResolution =
+  | {
+      ok: true;
+      customerIds: string[];
+      loginCustomerId?: string;
+      source: "connected_user" | "operator_fallback";
+    }
+  | { ok: false; code: GoogleAdsErrorCode; error: string };
+
+/**
+ * Chooses the customer account to query for the connected user. The operator's
+ * GOOGLE_ADS_CUSTOMER_ID is used only when GOOGLE_ADS_ALLOW_ENV_CUSTOMER=true,
+ * so one user's token is never pointed at the operator's account by default.
+ */
+export async function resolveGoogleAdsCustomers(input: {
+  accessToken: string;
+  developerToken: string;
+  requestedCustomerId?: string | null;
+  env?: Record<string, string | undefined>;
+}): Promise<CustomerResolution> {
+  const env = input.env ?? process.env;
+  if (env.GOOGLE_ADS_ALLOW_ENV_CUSTOMER === "true") {
+    const fallback = cleanCustomerId(env.GOOGLE_ADS_CUSTOMER_ID ?? "");
+    if (!/^\d{10}$/.test(fallback)) {
+      return {
+        ok: false,
+        code: "configuration_required",
+        error: "The operator Google Ads customer ID is invalid.",
+      };
+    }
+    return {
+      ok: true,
+      customerIds: [fallback],
+      loginCustomerId: env.GOOGLE_ADS_LOGIN_CUSTOMER_ID,
+      source: "operator_fallback",
+    };
+  }
+
+  const listed = await listAccessibleCustomers({
+    developerToken: input.developerToken,
+    accessToken: input.accessToken,
+  });
+  if (!listed.ok) {
+    return {
+      ok: false,
+      code: listed.code,
+      error:
+        listed.code === "oauth_required"
+          ? "Google Ads authorization expired. Reconnect your account."
+          : listed.code === "access_denied"
+            ? "Google Ads denied access to this Google account."
+            : listed.code === "configuration_required"
+              ? "Google Ads server configuration is incomplete or invalid."
+              : "Could not list your Google Ads accounts.",
+    };
+  }
+  if (listed.customerIds.length === 0) {
+    return {
+      ok: false,
+      code: "access_denied",
+      error: "This Google account has no accessible Google Ads customer account.",
+    };
+  }
+
+  const requested = input.requestedCustomerId
+    ? cleanCustomerId(input.requestedCustomerId)
+    : "";
+  if (requested) {
+    if (!listed.customerIds.includes(requested)) {
+      return {
+        ok: false,
+        code: "access_denied",
+        error: "That Google Ads account is not available to your Google login.",
+      };
+    }
+    return { ok: true, customerIds: [requested], source: "connected_user" };
+  }
+
+  return {
+    ok: true,
+    customerIds: listed.customerIds.slice(0, 5),
+    source: "connected_user",
+  };
+}
+
 export async function fetchLiveGoogleAdsData(
   credentials: GoogleAdsCredentials,
 ): Promise<GoogleAdsApiResponse> {

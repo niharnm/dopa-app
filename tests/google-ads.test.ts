@@ -3,6 +3,7 @@ import {
   fetchKeywordMetrics,
   fetchLiveGoogleAdsData,
   refreshGoogleAccessToken,
+  resolveGoogleAdsCustomers,
 } from "../utils/google-ads-client";
 import {
   isGoogleAdsAccessTokenFresh,
@@ -154,6 +155,91 @@ await test("requests current 12-month keyword history without fabricated CPC", a
   assert.equal("historicalMetricsOptions" in parsedBody, false);
   assert.equal(result["running watch"]?.avgMonthlySearches, 3200);
   assert.equal(result["running watch"]?.cpcFormatted, undefined);
+});
+
+await test("queries the connected user's accessible accounts, not the operator's", async () => {
+  const requests: Array<{ url: string; headers: Record<string, string> }> = [];
+  globalThis.fetch = (async (input, init) => {
+    requests.push({
+      url: String(input),
+      headers: init?.headers as Record<string, string>,
+    });
+    return new Response(
+      JSON.stringify({
+        resourceNames: ["customers/1111111111", "customers/2222222222", "bad"],
+      }),
+      { status: 200 },
+    );
+  }) as typeof fetch;
+
+  const env = {
+    GOOGLE_ADS_CUSTOMER_ID: "9999999999",
+    GOOGLE_ADS_LOGIN_CUSTOMER_ID: "8888888888",
+  };
+  const result = await resolveGoogleAdsCustomers({
+    accessToken: "user-token",
+    developerToken: "dev",
+    env,
+  });
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.ok && result.customerIds, [
+    "1111111111",
+    "2222222222",
+  ]);
+  assert.equal(result.ok && result.loginCustomerId, undefined);
+  assert.match(requests[0]?.url ?? "", /customers:listAccessibleCustomers$/);
+  assert.equal(requests[0]?.headers.Authorization, "Bearer user-token");
+
+  const picked = await resolveGoogleAdsCustomers({
+    accessToken: "user-token",
+    developerToken: "dev",
+    requestedCustomerId: "222-222-2222",
+    env,
+  });
+  assert.deepEqual(picked.ok && picked.customerIds, ["2222222222"]);
+
+  const foreign = await resolveGoogleAdsCustomers({
+    accessToken: "user-token",
+    developerToken: "dev",
+    requestedCustomerId: "9999999999",
+    env,
+  });
+  assert.equal(foreign.ok, false);
+  assert.equal(!foreign.ok && foreign.code, "access_denied");
+});
+
+await test("reports an error when the user has no accessible Google Ads account", async () => {
+  globalThis.fetch = (async () =>
+    new Response(JSON.stringify({}), { status: 200 })) as typeof fetch;
+  const result = await resolveGoogleAdsCustomers({
+    accessToken: "user-token",
+    developerToken: "dev",
+    env: { GOOGLE_ADS_CUSTOMER_ID: "9999999999" },
+  });
+  assert.equal(result.ok, false);
+  assert.equal(!result.ok && result.code, "access_denied");
+});
+
+await test("uses the operator customer only through the explicit fallback", async () => {
+  let requests = 0;
+  globalThis.fetch = (async () => {
+    requests += 1;
+    throw new Error("Unexpected request");
+  }) as typeof fetch;
+  const result = await resolveGoogleAdsCustomers({
+    accessToken: "operator-token",
+    developerToken: "dev",
+    env: {
+      GOOGLE_ADS_ALLOW_ENV_CUSTOMER: "true",
+      GOOGLE_ADS_CUSTOMER_ID: "999-999-9999",
+      GOOGLE_ADS_LOGIN_CUSTOMER_ID: "8888888888",
+    },
+  });
+  assert.deepEqual(result.ok && result.customerIds, ["9999999999"]);
+  assert.equal(result.ok && result.source, "operator_fallback");
+  assert.equal(result.ok && result.loginCustomerId, "8888888888");
+  assert.equal(requests, 0);
 });
 
 await test("refreshes a server-side OAuth token", async () => {

@@ -4,6 +4,7 @@ import { createClient } from "@/utils/supabase/server";
 import {
   fetchLiveGoogleAdsData,
   refreshGoogleAccessToken,
+  resolveGoogleAdsCustomers,
   type GoogleAdsApiResponse,
   type GoogleAdsCredentials,
 } from "@/utils/google-ads-client";
@@ -41,15 +42,16 @@ async function authenticatedCookieStore() {
 }
 
 function environmentCredentials(accessToken?: string): GoogleAdsCredentials {
+  // The customer account comes from the connected user's own access (or the
+  // explicit operator fallback), never from a shared environment default.
   return {
-    customerId: process.env.GOOGLE_ADS_CUSTOMER_ID ?? "",
+    customerId: "",
     developerToken: process.env.GOOGLE_ADS_DEVELOPER_TOKEN ?? "",
-    loginCustomerId: process.env.GOOGLE_ADS_LOGIN_CUSTOMER_ID,
     accessToken,
   };
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   const auth = await authenticatedCookieStore();
   if (!auth) {
     return json(
@@ -78,7 +80,6 @@ export async function GET() {
   const oauthClientSecret =
     process.env.GOOGLE_ADS_OAUTH_CLIENT_SECRET;
   const missingEnvVars = [
-    !credentials.customerId && "GOOGLE_ADS_CUSTOMER_ID",
     !credentials.developerToken && "GOOGLE_ADS_DEVELOPER_TOKEN",
     !isValidGoogleAdsTokenEncryptionKey(encryptionKey) &&
       "GOOGLE_ADS_TOKEN_ENCRYPTION_KEY",
@@ -164,7 +165,65 @@ export async function GET() {
     }
   }
 
-  const result = await fetchLiveGoogleAdsData(credentials);
+  if (!credentials.accessToken) {
+    const response = json(
+      {
+        success: false,
+        configured: true,
+        source: "unavailable",
+        code: "oauth_required",
+        error: "Connect Google Ads to authorize campaign access.",
+        campaigns: [],
+      },
+      428,
+    );
+    if (sealedToken) response.cookies.delete(GOOGLE_ADS_TOKEN_COOKIE);
+    return response;
+  }
+
+  const requestedCustomerId = new URL(request.url).searchParams.get(
+    "customerId",
+  );
+  const resolution = await resolveGoogleAdsCustomers({
+    accessToken: credentials.accessToken,
+    developerToken: credentials.developerToken,
+    requestedCustomerId,
+  });
+  if (!resolution.ok) {
+    const response = json(
+      {
+        success: false,
+        configured: resolution.code !== "configuration_required",
+        source: "unavailable",
+        code: resolution.code,
+        error: resolution.error,
+        campaigns: [],
+      },
+      resolution.code === "oauth_required"
+        ? 428
+        : resolution.code === "access_denied"
+          ? 403
+          : resolution.code === "configuration_required"
+            ? 503
+            : 502,
+    );
+    if (resolution.code === "oauth_required") {
+      response.cookies.delete(GOOGLE_ADS_TOKEN_COOKIE);
+    }
+    return response;
+  }
+  credentials.loginCustomerId = resolution.loginCustomerId;
+
+  // A user may reach several accounts, and manager accounts have no campaign
+  // data, so try each candidate until one answers.
+  let result = await fetchLiveGoogleAdsData({
+    ...credentials,
+    customerId: resolution.customerIds[0] ?? "",
+  });
+  for (const customerId of resolution.customerIds.slice(1)) {
+    if (result.success || result.code === "oauth_required") break;
+    result = await fetchLiveGoogleAdsData({ ...credentials, customerId });
+  }
   const status =
     result.success
       ? 200

@@ -8,6 +8,8 @@ export type ApiQuotaBucket =
   | "keyword_generate"
   | "google_ads_read";
 
+export type AnonymousApiQuotaBucket = "business_demo_discover";
+
 type QuotaClient = {
   rpc(
     functionName: string,
@@ -46,17 +48,16 @@ function quotaResult(value: unknown): QuotaResult | null {
   };
 }
 
-export async function enforceApiQuota(
-  supabase: QuotaClient,
-  bucket: ApiQuotaBucket,
-): Promise<NextResponse | null> {
-  const { data, error } = await supabase.rpc("consume_api_quota", {
-    p_bucket: bucket,
-  });
+function quotaResponse(
+  data: unknown,
+  error: { code?: string } | null,
+  bucket: string,
+  label: string,
+): NextResponse | null {
   const result = error ? null : quotaResult(data);
 
   if (!result) {
-    console.error("Authenticated API quota check failed.", {
+    console.error(`${label} quota check failed.`, {
       bucket,
       code: error?.code ?? "invalid_response",
     });
@@ -78,4 +79,30 @@ export async function enforceApiQuota(
       },
     },
   );
+}
+
+export async function enforceApiQuota(
+  supabase: QuotaClient,
+  bucket: ApiQuotaBucket,
+): Promise<NextResponse | null> {
+  const { data, error } = await supabase.rpc("consume_api_quota", {
+    p_bucket: bucket,
+  });
+  return quotaResponse(data, error, bucket, "Authenticated API");
+}
+
+/**
+ * Durable quota for public endpoints, keyed by a hashed client address. Needs a
+ * service-role client because anonymous callers cannot reach the RPC directly.
+ */
+export async function enforceAnonymousApiQuota(
+  supabase: QuotaClient,
+  bucket: AnonymousApiQuotaBucket,
+  clientKey: string,
+): Promise<NextResponse | null> {
+  const { data, error } = await supabase.rpc("consume_anonymous_api_quota", {
+    p_bucket: bucket,
+    p_client_key: clientKey,
+  });
+  return quotaResponse(data, error, bucket, "Anonymous API");
 }
